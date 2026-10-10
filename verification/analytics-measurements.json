@@ -1,0 +1,103 @@
+{
+  "source": "10.10.2026 local reference snapshot; no fresh API assertion",
+  "tokenizer": "o200k_base (ChatGPT model family; exact selected-model tokenizer unknown)",
+  "measurement_scope": "Entire JSON MCP result envelopes, including escaped text. Before task reconstructs old normalized document pages plus complete product/variant cards and sales report. Raw document headers unavailable; reconstruction is disclosed. Requests, prompts, model framing and schemas are not included in these result counts.",
+  "controls": {
+    "sizes": {
+      "female_sleeveless": {
+        "sold": 1117,
+        "returned": 25,
+        "net": 1092,
+        "rows": 738
+      },
+      "female_sleeved": {
+        "sold": 166,
+        "returned": 20,
+        "net": 146,
+        "rows": 131
+      },
+      "male": {
+        "sold": 353,
+        "returned": 6,
+        "net": 347,
+        "rows": 170
+      }
+    },
+    "prices": [
+      {
+        "id": "short_1000_2000",
+        "sold": 239,
+        "returned": 9,
+        "net": 230
+      },
+      {
+        "id": "short_2000_3000",
+        "sold": 444,
+        "returned": 11,
+        "net": 433
+      },
+      {
+        "id": "short_5000_9500",
+        "sold": 244,
+        "returned": 2,
+        "net": 242
+      },
+      {
+        "id": "long_7000_8000",
+        "sold": 14,
+        "returned": 1,
+        "net": 13
+      },
+      {
+        "id": "long_8000_9000",
+        "sold": 3,
+        "returned": 0,
+        "net": 3
+      },
+      {
+        "id": "long_9000_12500",
+        "sold": 94,
+        "returned": 13,
+        "net": 81
+      }
+    ],
+    "outside": {
+      "female_sleeveless": {
+        "sold": 190,
+        "returned": 3,
+        "net": 187,
+        "rows": 145
+      },
+      "female_sleeved": {
+        "sold": 55,
+        "returned": 6,
+        "net": 49,
+        "rows": 37
+      }
+    },
+    "mismatches": 0,
+    "source_rows": 2496
+  },
+  "results": {
+    "old_task_total": {
+      "tokens": 3758338,
+      "characters": 11339366,
+      "bytes_utf8": 11900053
+    },
+    "new_size_summary": {
+      "tokens": 992,
+      "characters": 3117,
+      "bytes_utf8": 3123
+    },
+    "new_price_summary": {
+      "tokens": 1005,
+      "characters": 3836,
+      "bytes_utf8": 3836
+    },
+    "new_both_task_total": {
+      "tokens": 1997,
+      "characters": 6953,
+      "bytes_utf8": 6959
+    }
+  }
+}

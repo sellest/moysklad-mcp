@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { moyskladGet } from "../client.js";
-import { buildFilter, formatList, json, kopToRub, listQuery } from "../lib.js";
+import { formatList, json, kopToRub } from "../lib.js";
+import { assortmentFields, projectAssortment, reportPage, reportPeriodSchema, reportQuery } from "../report-lib.js";
 import type { ToolDef } from "../types.js";
+import { outputResult, outputSchema } from "../output.js";
 
 // --- get_dashboard ---
 export const getDashboardSchema = z.object({
@@ -14,33 +16,36 @@ export async function handleGetDashboard(p: z.infer<typeof getDashboardSchema>):
 }
 
 // --- get_turnover (обороты товаров) ---
-export const getTurnoverSchema = z.object({
-  moment_from: z.string().optional().describe("Start date, ISO 8601 (e.g. 2024-01-01)"),
-  moment_to: z.string().optional().describe("End date, ISO 8601 (e.g. 2024-12-31)"),
-  limit: z.number().int().min(1).max(1000).default(25).describe("Number of results"),
-  offset: z.number().int().default(0).describe("Offset for pagination"),
-});
+export const getTurnoverSchema = z.object({ ...reportPeriodSchema, ...outputSchema });
 export async function handleGetTurnover(p: z.infer<typeof getTurnoverSchema>): Promise<string> {
-  const filter = buildFilter([
-    ["momentFrom", p.moment_from ? `${p.moment_from} 00:00:00` : ""],
-    ["momentTo", p.moment_to ? `${p.moment_to} 23:59:59` : ""],
-  ]);
-  const qs = listQuery({ limit: p.limit, offset: p.offset, filter });
+  const qs = reportQuery(p);
   const result = await moyskladGet(`/report/turnover/all?${qs}`);
   const section = (s: unknown) => {
     const x = (s ?? {}) as Record<string, unknown>;
-    return { quantity: x.quantity, sum_rubles: kopToRub(x.sum) };
+    return { quantity: x.quantity, ...(p.fields === "quantity" ? {} : { sum_rubles: kopToRub(x.sum) }) };
   };
-  return formatList(result, "items", (row) => {
-    const assortment = row.assortment as Record<string, unknown> | undefined;
-    return {
-      product_name: assortment?.name ?? null,
-      on_period_start: section(row.onPeriodStart),
-      income: section(row.income),
-      outcome: section(row.outcome),
-      on_period_end: section(row.onPeriodEnd),
-    };
-  });
+  const formatted = JSON.parse(
+    formatList(result, "items", (row) => {
+      const assortment = row.assortment as Record<string, unknown> | undefined;
+      return {
+        ...(p.fields === "full" ? assortmentFields(assortment) : projectAssortment(assortment, p.fields)),
+        on_period_start: section(row.onPeriodStart),
+        income: section(row.income),
+        outcome: section(row.outcome),
+        on_period_end: section(row.onPeriodEnd),
+      };
+    }),
+  );
+  const summary = { ...reportPage(result, p), summary_scope: "requested page, not all pages" };
+  return outputResult(
+    p.detail === "raw"
+      ? result
+      : p.detail === "summary" && p.output !== "file"
+        ? summary
+        : { ...formatted, ...summary },
+    summary,
+    p,
+  );
 }
 
 // --- get_money_report (остатки денег по счетам/кассам) ---

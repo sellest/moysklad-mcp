@@ -116,7 +116,7 @@ describe("generic get_documents / get_document", () => {
   it("gets a single document with positions expanded", async () => {
     mockGet.mockResolvedValue({ id: "d1" });
     await handleGetDocument({ entity_type: "demand", id: "d1" });
-    expect(mockGet.mock.calls[0][0]).toBe("/entity/demand/d1?expand=positions");
+    expect(mockGet.mock.calls[0][0]).toBe("/entity/demand/d1?expand=positions.assortment");
   });
 });
 

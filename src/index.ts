@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { VERSION } from "./version.js";
 import type { ToolDef } from "./types.js";
@@ -21,6 +21,13 @@ import { tools as catalogTools } from "./tools/catalog.js";
 import { tools as reportsExtraTools } from "./tools/reports_extra.js";
 import { tools as referenceTools } from "./tools/reference.js";
 import { tools as auditTools } from "./tools/audit.js";
+import { tools as analyticsTools } from "./tools/analytics.js";
+import { tools as reconciliationTools } from "./tools/reconciliation.js";
+import { tools as rankingTools } from "./tools/rankings.js";
+import { requestScheduler } from "./client.js";
+import { sourceCacheDiagnostics } from "./analytics-data.js";
+import { z } from "zod";
+import { handleReadExport, readExport, readExportSchema } from "./output.js";
 
 const allTools: ToolDef[] = [
   ...productTools,
@@ -39,22 +46,113 @@ const allTools: ToolDef[] = [
   ...reportsExtraTools,
   ...referenceTools,
   ...auditTools,
+  ...analyticsTools,
+  ...reconciliationTools,
+  ...rankingTools,
+  {
+    name: "get_mcp_diagnostics",
+    description:
+      "Explicit compact diagnostics: request timings, safe rate-limit headers/codes, cooldown and source-cache counts. No credentials, paths, requests or business payloads.",
+    schema: z.object({ last_events: z.number().int().min(0).max(20).default(5) }),
+    handler: async (p) =>
+      JSON.stringify({
+        scheduler: requestScheduler.diagnostics(p.last_events),
+        source_cache: sourceCacheDiagnostics(),
+      }),
+  },
+  {
+    name: "read_report_export",
+    description: "Read a page of a saved MCP export. Files expire after one hour or server restart.",
+    schema: readExportSchema,
+    handler: handleReadExport,
+  },
 ];
 
-const server = new McpServer({ name: "moysklad-mcp", version: VERSION });
+export const wrap = (handler: (params: any) => Promise<string>) => async (params: any) => {
+  let text;
+  try {
+    text = await handler(params);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const code = /^([A-Z][A-Z0-9_]+):/.exec(message)?.[1] ?? "TOOL_FAILED";
+    const safe =
+      code === "TOOL_FAILED" ? "Operation failed; check configuration and permissions." : message.slice(0, 250);
+    return {
+      isError: true,
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            error: {
+              code,
+              message: safe,
+              action:
+                "Correct parameters or retry later; get_mcp_diagnostics provides safe request diagnostics. No partial report returned.",
+            },
+          }),
+        },
+      ],
+    };
+  }
+  const content: any[] = [{ type: "text", text }];
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    /* Plain-text tools remain supported. */
+  }
+  if (result?.export?.uri)
+    content.push({
+      type: "resource_link",
+      uri: result.export.uri,
+      name: "report.json",
+      mimeType: "application/json",
+      description: "Full export; resources/read or read_report_export",
+    });
+  return { content };
+};
 
-const wrap = (handler: (params: any) => Promise<string>) => async (params: any) => ({
-  content: [{ type: "text" as const, text: await handler(params) }],
-});
-
-const seen = new Set<string>();
-for (const t of allTools) {
-  if (seen.has(t.name)) throw new Error(`Duplicate tool name: ${t.name}`);
-  seen.add(t.name);
-  server.tool(t.name, t.description, t.schema.shape, wrap(t.handler));
+function createMcpServer() {
+  const instance = new McpServer({ name: "moysklad-mcp", version: VERSION });
+  instance.resource(
+    "report-export",
+    new ResourceTemplate("moysklad-export://{id}", { list: undefined }),
+    { mimeType: "application/json" },
+    async (uri) => ({ contents: [{ uri: uri.href, mimeType: "application/json", text: await readExport(uri.href) }] }),
+  );
+  const seen = new Set<string>();
+  for (const t of selectedTools()) {
+    if (seen.has(t.name)) throw new Error(`Duplicate tool name: ${t.name}`);
+    seen.add(t.name);
+    instance.tool(t.name, t.description, t.schema.shape, wrap(t.handler));
+  }
+  return instance;
 }
 
-const TOOL_COUNT = allTools.length;
+const analyticsNames = new Set([
+  "search_products",
+  "search_variants",
+  "search_assortment",
+  "get_document",
+  "get_documents",
+  "get_sales_report",
+  "get_profit_report",
+  "get_sales_by_size",
+  "get_sales_by_price",
+  "get_sales_by_category",
+  "get_sales_ranking_by_article",
+  "reconcile_sales",
+  "read_report_export",
+  "get_mcp_diagnostics",
+  "list_organizations",
+]);
+function selectedTools() {
+  const profile = process.env.MOYSKLAD_TOOL_PROFILE ?? "full";
+  if (profile !== "full" && profile !== "analytics") throw new Error("TOOL_PROFILE: use full or analytics.");
+  return profile === "analytics" ? allTools.filter((tool) => analyticsNames.has(tool.name)) : allTools;
+}
+const server = createMcpServer();
+const TOOL_COUNT = selectedTools().length;
 
 async function main() {
   const httpPort =
@@ -73,7 +171,6 @@ async function main() {
 async function startHttpTransport(port: number) {
   const { createServer } = await import("node:http");
   const { StreamableHTTPServerTransport } = await import("@modelcontextprotocol/sdk/server/streamableHttp.js");
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined as unknown as () => string });
   // CORS is opt-in: only emit Access-Control-Allow-Origin when explicitly
   // configured. The HTTP transport exposes tools that act on the configured
   // MoySklad token, so a wildcard default would let any web page drive it.
@@ -91,20 +188,57 @@ async function startHttpTransport(port: number) {
     }
     if (req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok", tools: TOOL_COUNT, transport: "streamable-http", version: VERSION }));
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          tools: selectedTools().length,
+          tool_profile: process.env.MOYSKLAD_TOOL_PROFILE ?? "full",
+          transport: "streamable-http",
+          version: VERSION,
+        }),
+      );
       return;
     }
     if (req.url === "/mcp") {
-      await transport.handleRequest(req, res);
+      // A stateless transport may handle only one request. Keep both the
+      // transport and server isolated so concurrent clients can reuse IDs.
+      const requestServer = createMcpServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      });
+      res.on("close", () => {
+        void requestServer.close().catch(() => {
+          console.error("[moysklad-mcp] HTTP_CLEANUP_FAILED");
+        });
+      });
+      try {
+        await requestServer.connect(transport);
+        await transport.handleRequest(req, res);
+      } catch {
+        console.error("[moysklad-mcp] HTTP_TRANSPORT_ERROR");
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32603, message: "Internal server error" } }),
+          );
+        } else {
+          res.end();
+        }
+      }
       return;
     }
     res.writeHead(404);
     res.end("Not found. Use /mcp or /health.");
   });
-  await server.connect(transport);
-  httpServer.listen(port, () => {
-    console.error(`[moysklad-mcp] HTTP server on port ${port}. ${TOOL_COUNT} tools available.`);
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once("error", reject);
+    httpServer.listen(port, resolve);
   });
+  if (port !== 0) {
+    console.error(`[moysklad-mcp] HTTP server on port ${port}. ${TOOL_COUNT} tools available.`);
+  }
+  return httpServer;
 }
 
 const isDirectRun = process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts");
@@ -115,4 +249,4 @@ if (isDirectRun) {
   });
 }
 
-export { server, allTools };
+export { server, allTools, startHttpTransport };

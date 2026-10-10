@@ -1,0 +1,324 @@
+{
+  "fixture": "Anonymous stable September 2026 snapshot, 2496 lines, 258 parent cards. Synthetic folder metadata for projection comparison.",
+  "tokenizer": "o200k_base",
+  "scope": "All offered runtime tools/list schemas plus every request/result in the declared controlled task trace, including resource links and export page followups. No omitted successful task MCP messages; retries=0 here (429 tests measured separately). SDK/OpenAI hidden framing, prompts, reasoning and application-specific tool subset are unavailable and excluded. Internal API requests never pass to the model. Durations use mocked API, not live latency.",
+  "baseline": "Executed preserved 3.2.0 compiled handlers; no reconstructed raw response. Ranking baseline downloads quantity sales and full product cards and requires client-side computation; reference oracle validates task outcome, not an executed LLM session.",
+  "results": {
+    "3.2.0": {
+      "quantity_products_25": {
+        "total_content": {
+          "tokens": 18480,
+          "characters": 79627,
+          "bytes_utf8": 81184
+        },
+        "schemas": {
+          "tokens": 12865,
+          "characters": 57088,
+          "bytes_utf8": 57454
+        },
+        "followup_content": {
+          "tokens": 5609,
+          "characters": 22516,
+          "bytes_utf8": 23707
+        },
+        "mcp_messages": 4,
+        "resource_reads": 0,
+        "api_requests": 1,
+        "execution_ms": 73,
+        "failures": 0,
+        "controls": {
+          "returned": 25
+        }
+      },
+      "female_top20": {
+        "total_content": {
+          "tokens": 82768,
+          "characters": 335007,
+          "bytes_utf8": 358723
+        },
+        "schemas": {
+          "tokens": 12865,
+          "characters": 57088,
+          "bytes_utf8": 57454
+        },
+        "followup_content": {
+          "tokens": 69897,
+          "characters": 277896,
+          "bytes_utf8": 301246
+        },
+        "mcp_messages": 6,
+        "resource_reads": 0,
+        "api_requests": 2,
+        "execution_ms": 310,
+        "failures": 0,
+        "controls": {
+          "leader": "202-153",
+          "sold": 187,
+          "top20_quantity": 742,
+          "validation": "reference fixture; old tool has no ranking, model-side classification/aggregation required"
+        }
+      },
+      "three_categories": {
+        "total_content": {
+          "tokens": 14218,
+          "characters": 62033,
+          "bytes_utf8": 62399
+        },
+        "schemas": {
+          "tokens": 12865,
+          "characters": 57088,
+          "bytes_utf8": 57454
+        },
+        "followup_content": {
+          "tokens": 1347,
+          "characters": 4922,
+          "bytes_utf8": 4922
+        },
+        "mcp_messages": 6,
+        "resource_reads": 1,
+        "api_requests": 267,
+        "execution_ms": 114,
+        "failures": 0,
+        "controls": {
+          "sold": [1117, 166, 372]
+        }
+      },
+      "size_and_price": {
+        "total_content": {
+          "tokens": 15527,
+          "characters": 66219,
+          "bytes_utf8": 66591
+        },
+        "schemas": {
+          "tokens": 12865,
+          "characters": 57088,
+          "bytes_utf8": 57454
+        },
+        "followup_content": {
+          "tokens": 2656,
+          "characters": 9108,
+          "bytes_utf8": 9114
+        },
+        "mcp_messages": 6,
+        "resource_reads": 0,
+        "api_requests": 22,
+        "execution_ms": 109,
+        "failures": 0,
+        "controls": {
+          "size_rows": 12,
+          "price_sold": [239, 444, 244, 14, 3, 94]
+        }
+      }
+    },
+    "3.3.0-full": {
+      "quantity_products_25": {
+        "total_content": {
+          "tokens": 15020,
+          "characters": 66187,
+          "bytes_utf8": 67199
+        },
+        "schemas": {
+          "tokens": 14193,
+          "characters": 63362,
+          "bytes_utf8": 63778
+        },
+        "followup_content": {
+          "tokens": 821,
+          "characters": 2802,
+          "bytes_utf8": 3398
+        },
+        "mcp_messages": 4,
+        "resource_reads": 0,
+        "api_requests": 1,
+        "execution_ms": 40,
+        "failures": 0,
+        "controls": {
+          "returned": 25
+        }
+      },
+      "female_top20": {
+        "total_content": {
+          "tokens": 16056,
+          "characters": 69713,
+          "bytes_utf8": 70129
+        },
+        "schemas": {
+          "tokens": 14193,
+          "characters": 63362,
+          "bytes_utf8": 63778
+        },
+        "followup_content": {
+          "tokens": 1857,
+          "characters": 6328,
+          "bytes_utf8": 6328
+        },
+        "mcp_messages": 6,
+        "resource_reads": 1,
+        "api_requests": 267,
+        "execution_ms": 3395,
+        "failures": 0,
+        "controls": {
+          "leader": "202-153",
+          "sold": 187,
+          "top20_quantity": 742
+        }
+      },
+      "three_categories": {
+        "total_content": {
+          "tokens": 15487,
+          "characters": 67945,
+          "bytes_utf8": 68361
+        },
+        "schemas": {
+          "tokens": 14193,
+          "characters": 63362,
+          "bytes_utf8": 63778
+        },
+        "followup_content": {
+          "tokens": 1288,
+          "characters": 4560,
+          "bytes_utf8": 4560
+        },
+        "mcp_messages": 6,
+        "resource_reads": 1,
+        "api_requests": 0,
+        "execution_ms": 56,
+        "failures": 0,
+        "controls": {
+          "sold": [1117, 166, 372]
+        }
+      },
+      "size_and_price": {
+        "total_content": {
+          "tokens": 17054,
+          "characters": 73128,
+          "bytes_utf8": 73550
+        },
+        "schemas": {
+          "tokens": 14193,
+          "characters": 63362,
+          "bytes_utf8": 63778
+        },
+        "followup_content": {
+          "tokens": 2855,
+          "characters": 9743,
+          "bytes_utf8": 9749
+        },
+        "mcp_messages": 6,
+        "resource_reads": 0,
+        "api_requests": 0,
+        "execution_ms": 77,
+        "failures": 0,
+        "controls": {
+          "size_rows": 12,
+          "price_sold": [239, 444, 244, 14, 3, 94]
+        }
+      }
+    },
+    "3.3.0-analytics": {
+      "quantity_products_25": {
+        "total_content": {
+          "tokens": 6015,
+          "characters": 26287,
+          "bytes_utf8": 26997
+        },
+        "schemas": {
+          "tokens": 5188,
+          "characters": 23462,
+          "bytes_utf8": 23576
+        },
+        "followup_content": {
+          "tokens": 821,
+          "characters": 2802,
+          "bytes_utf8": 3398
+        },
+        "mcp_messages": 4,
+        "resource_reads": 0,
+        "api_requests": 1,
+        "execution_ms": 24,
+        "failures": 0,
+        "controls": {
+          "returned": 25
+        }
+      },
+      "female_top20": {
+        "total_content": {
+          "tokens": 7035,
+          "characters": 29812,
+          "bytes_utf8": 29926
+        },
+        "schemas": {
+          "tokens": 5188,
+          "characters": 23462,
+          "bytes_utf8": 23576
+        },
+        "followup_content": {
+          "tokens": 1841,
+          "characters": 6327,
+          "bytes_utf8": 6327
+        },
+        "mcp_messages": 6,
+        "resource_reads": 1,
+        "api_requests": 0,
+        "execution_ms": 26,
+        "failures": 0,
+        "controls": {
+          "leader": "202-153",
+          "sold": 187,
+          "top20_quantity": 742
+        }
+      },
+      "three_categories": {
+        "total_content": {
+          "tokens": 6498,
+          "characters": 28045,
+          "bytes_utf8": 28159
+        },
+        "schemas": {
+          "tokens": 5188,
+          "characters": 23462,
+          "bytes_utf8": 23576
+        },
+        "followup_content": {
+          "tokens": 1304,
+          "characters": 4560,
+          "bytes_utf8": 4560
+        },
+        "mcp_messages": 6,
+        "resource_reads": 1,
+        "api_requests": 0,
+        "execution_ms": 25,
+        "failures": 0,
+        "controls": {
+          "sold": [1117, 166, 372]
+        }
+      },
+      "size_and_price": {
+        "total_content": {
+          "tokens": 8049,
+          "characters": 33228,
+          "bytes_utf8": 33348
+        },
+        "schemas": {
+          "tokens": 5188,
+          "characters": 23462,
+          "bytes_utf8": 23576
+        },
+        "followup_content": {
+          "tokens": 2855,
+          "characters": 9743,
+          "bytes_utf8": 9749
+        },
+        "mcp_messages": 6,
+        "resource_reads": 0,
+        "api_requests": 0,
+        "execution_ms": 55,
+        "failures": 0,
+        "controls": {
+          "size_rows": 12,
+          "price_sold": [239, 444, 244, 14, 3, 94]
+        }
+      }
+    }
+  }
+}

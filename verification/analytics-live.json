@@ -1,0 +1,107 @@
+{
+  "checked_at": "2026-10-10T17:16:58.675Z",
+  "read_only": true,
+  "documents": {
+    "demand": 788,
+    "salesreturn": 60,
+    "retaildemand": 0,
+    "retailsalesreturn": 0
+  },
+  "positions": 2496,
+  "sizes": {
+    "female_sleeveless": {
+      "sold": 1117,
+      "returned": 25,
+      "net": 1092,
+      "rows": 738
+    },
+    "female_sleeved": {
+      "sold": 166,
+      "returned": 20,
+      "net": 146,
+      "rows": 131
+    },
+    "male": {
+      "sold": 353,
+      "returned": 6,
+      "net": 347,
+      "rows": 170
+    }
+  },
+  "prices": [
+    {
+      "id": "short_1000_2000",
+      "sold": 239,
+      "returned": 9,
+      "net": 230
+    },
+    {
+      "id": "short_2000_3000",
+      "sold": 444,
+      "returned": 11,
+      "net": 433
+    },
+    {
+      "id": "short_5000_9500",
+      "sold": 244,
+      "returned": 2,
+      "net": 242
+    },
+    {
+      "id": "long_7000_8000",
+      "sold": 14,
+      "returned": 1,
+      "net": 13
+    },
+    {
+      "id": "long_8000_9000",
+      "sold": 3,
+      "returned": 0,
+      "net": 3
+    },
+    {
+      "id": "long_9000_12500",
+      "sold": 94,
+      "returned": 13,
+      "net": 81
+    }
+  ],
+  "outside": {
+    "female_sleeveless": {
+      "sold": 190,
+      "returned": 3,
+      "net": 187,
+      "rows": 145
+    },
+    "female_sleeved": {
+      "sold": 55,
+      "returned": 6,
+      "net": 49,
+      "rows": 37
+    }
+  },
+  "unresolved": {
+    "sizes": {},
+    "prices": {}
+  },
+  "snapshot_controls_match": true,
+  "reconciliation": {
+    "mismatches": 0,
+    "compared_products": 354,
+    "totals": {
+      "documents": {
+        "sold": 3376,
+        "returned": 100
+      },
+      "report": {
+        "sold": 3376,
+        "returned": 100
+      }
+    }
+  },
+  "export": {
+    "readable": true,
+    "detail_rows": 1072,
+    "dictionary_entries": 685
+  }
+}
