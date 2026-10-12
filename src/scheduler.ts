@@ -35,12 +35,14 @@ export function retryDelayMs(headers: Headers, attempt: number, now = Date.now()
 /** One paced, FIFO queue shared by all operations in this process. No credentials or payloads are retained. */
 export class RequestScheduler {
   private active = 0;
+  private interactiveStreak = 0;
   private concurrency: number;
   private spacing: number;
   private nextStart = 0;
   private blockedUntil = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private queue: {
+    priority: "interactive" | "background";
     weight: number;
     resolve: (release: () => void) => void;
     reject: (e: Error) => void;
@@ -58,9 +60,37 @@ export class RequestScheduler {
     this.concurrency = Math.min(5, Math.max(1, concurrency));
     this.spacing = interval / Math.max(1, budget);
   }
-  acquire(weight = 1): Promise<() => void> {
+  acquire(
+    weight = 1,
+    signal?: AbortSignal,
+    priority: "interactive" | "background" = "interactive",
+  ): Promise<() => void> {
     return new Promise((resolve, reject) => {
-      this.queue.push({ weight: Math.max(1, weight), resolve, reject, deadline: Date.now() + this.maxWait });
+      if (signal?.aborted) {
+        reject(new Error("JOB_CANCELLED: Report cancelled."));
+        return;
+      }
+      const abort = () => {
+        const index = this.queue.indexOf(request);
+        if (index >= 0) this.queue.splice(index, 1);
+        reject(new Error("JOB_CANCELLED: Report cancelled."));
+        this.pump();
+      };
+      const request = {
+        priority,
+        weight: Math.max(1, weight),
+        resolve: (release: () => void) => {
+          signal?.removeEventListener("abort", abort);
+          resolve(release);
+        },
+        reject: (error: Error) => {
+          signal?.removeEventListener("abort", abort);
+          reject(error);
+        },
+        deadline: Date.now() + this.maxWait,
+      };
+      this.queue.push(request);
+      signal?.addEventListener("abort", abort, { once: true });
       this.pump();
     });
   }
@@ -68,18 +98,18 @@ export class RequestScheduler {
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
     const now = Date.now();
-    while (this.queue[0]?.deadline <= now)
-      this.queue
-        .shift()!
-        .reject(
-          new Error(
-            "RATE_WAIT_EXHAUSTED: API cooldown exceeds waiting budget; retry later and use one server process.",
-          ),
-        );
+    for (const request of [...this.queue])
+      if (request.deadline <= now) {
+        this.queue.splice(this.queue.indexOf(request), 1);
+        request.reject(new Error("RATE_WAIT_EXHAUSTED: API cooldown exceeds waiting budget; retry later."));
+      }
     if (!this.queue.length) return;
     const ready = Math.max(this.nextStart, this.blockedUntil);
     if (this.active < this.concurrency && ready <= now) {
-      const request = this.queue.shift()!;
+      const preferred = this.interactiveStreak >= 3 ? "background" : "interactive";
+      const index = this.queue.findIndex((r) => r.priority === preferred);
+      const request = this.queue.splice(index < 0 ? 0 : index, 1)[0];
+      this.interactiveStreak = request.priority === "interactive" ? this.interactiveStreak + 1 : 0;
       this.active++;
       this.requests++;
       this.nextStart = now + this.spacing * request.weight;
@@ -97,9 +127,9 @@ export class RequestScheduler {
         this.active < this.concurrency
           ? Math.min(
               Math.max(1, Math.max(this.nextStart, this.blockedUntil) - now),
-              Math.max(1, this.queue[0].deadline - now),
+              Math.max(1, Math.min(...this.queue.map((r) => r.deadline)) - now),
             )
-          : Math.max(1, this.queue[0].deadline - now);
+          : Math.max(1, Math.min(...this.queue.map((r) => r.deadline)) - now);
       this.timer = setTimeout(() => this.pump(), wait);
     }
   }

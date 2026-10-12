@@ -1,3 +1,6 @@
+import { catalogCardPath, isExpandedEntity } from "./snapshot-catalog.js";
+import { reportContext, reportProgress } from "./report-context.js";
+import { atomicWrite, readJson } from "./report-store.js";
 import { createHash, randomUUID } from "node:crypto";
 import { moyskladGet } from "./client.js";
 import { buildFilter, listQuery } from "./lib.js";
@@ -5,15 +8,35 @@ import { getExportScope } from "./output.js";
 import { normalizeReportMoment, type ReportPeriod } from "./report-lib.js";
 
 export type ApiEntity = Record<string, any>;
-type CachedEntity = { value: ApiEntity; checked: number };
+type CachedEntity = { value: ApiEntity; checked: number; bytes: number };
+let cacheBytes = 0;
 const cache = new Map<string, CachedEntity>();
 const pending = new Map<string, Promise<ApiEntity>>();
 const cacheTtl = 5 * 60 * 1000;
 export const cacheRules = {
   ttl_seconds: 300,
   refresh: "refresh_catalog=true bypasses cached cards; embedded changed updated also refreshes",
-  scope: "credential-specific, in-process; no disk cache of business cards",
+  scope:
+    "credential-specific; background reports persist frozen cards per snapshot for 24 hours; interactive cache is in-process",
 };
+
+function rememberCard(key: string, value: ApiEntity) {
+  const bytes = Buffer.byteLength(JSON.stringify(value));
+  const replaced = cache.get(key);
+  if (replaced) {
+    cacheBytes -= replaced.bytes;
+    cache.delete(key);
+  }
+  while (cache.size && (cache.size >= 2048 || cacheBytes + bytes > 16 * 1024 * 1024)) {
+    const oldest = cache.keys().next().value!;
+    cacheBytes -= cache.get(oldest)!.bytes;
+    cache.delete(oldest);
+  }
+  if (bytes <= 16 * 1024 * 1024) {
+    cache.set(key, { value, checked: Date.now(), bytes });
+    cacheBytes += bytes;
+  }
+}
 
 export async function cachedEntity(
   type: string,
@@ -22,25 +45,53 @@ export async function cachedEntity(
   refresh = false,
 ): Promise<ApiEntity> {
   if (!/^[a-z]+$/.test(type) || !/^[\w-]+$/.test(id)) throw new Error("ENTITY_ID: invalid type or id.");
-  const key = `${getExportScope()}:${type}:${id}`;
+  const run = reportContext.getStore();
+  const key = `${getExportScope()}:${run?.catalogId ?? "live"}:${type}:${id}`;
   const existing = cache.get(key);
+  if (run && existing) {
+    await reportProgress("enrich_catalog", { catalog_memory_hits: 1 });
+    return existing.value;
+  }
+  const cardPath = run ? catalogCardPath(run.scope, run.catalogId ?? run.jobId, type, id) : null;
+  if (cardPath) {
+    const saved = await readJson<ApiEntity>(cardPath).catch(() => null);
+    if (saved) {
+      rememberCard(key, saved);
+      await reportProgress("enrich_catalog", { catalog_snapshot_hits: 1 });
+      return saved;
+    }
+  }
+
   if (
     !refresh &&
     existing &&
     Date.now() - existing.checked < cacheTtl &&
     (!embedded?.updated || embedded.updated === existing.value.updated)
-  )
+  ) {
+    if (cardPath) await atomicWrite(cardPath, JSON.stringify(existing.value));
     return existing.value;
+  }
   const active = pending.get(key);
   if (active) return active;
   const promise = (async () => {
     // API expansions are fresh, full entity snapshots; references are not.
-    const isFull =
-      embedded &&
-      typeof embedded.name === "string" &&
-      (type === "variant" ? Array.isArray(embedded.characteristics) && embedded.product : "pathName" in embedded);
-    const value = !refresh && isFull ? embedded : ((await moyskladGet(`/entity/${type}/${id}`)) as ApiEntity);
-    cache.set(key, { value, checked: Date.now() });
+    const isFull = isExpandedEntity(type, embedded);
+    let value: ApiEntity;
+    if (!refresh && isFull) {
+      value = embedded!;
+      await reportProgress("enrich_catalog", { catalog_embedded_hits: 1 });
+    } else {
+      await reportProgress("enrich_catalog", { catalog_requests: 1 });
+      try {
+        value = (await moyskladGet(`/entity/${type}/${id}`)) as ApiEntity;
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.startsWith("API_HTTP_404:")) throw error;
+        value = { id, meta: { type }, name: embedded?.name ?? null, unavailable: true };
+        await reportProgress("enrich_catalog", { catalog_missing_cards: 1 });
+      }
+    }
+    rememberCard(key, value);
+    if (cardPath) await atomicWrite(cardPath, JSON.stringify(value));
     return value;
   })();
   pending.set(key, promise);
@@ -71,6 +122,7 @@ export function catalogVersion(): { version: string; checked_at: string | null; 
 
 export function clearCatalogCache(): void {
   cache.clear();
+  cacheBytes = 0;
   pending.clear();
 }
 
@@ -218,6 +270,10 @@ export interface SourceSnapshot {
 }
 export interface LoadedSource {
   lines: SourceLine[];
+  lineStream?: AsyncIterable<SourceLine>;
+  position_count?: number;
+  completeness?: Record<string, unknown>;
+  passport?: Record<string, unknown>;
   documents: Record<string, number>;
   catalog: ReturnType<typeof catalogVersion>;
   snapshot?: SourceSnapshot;
@@ -236,6 +292,10 @@ export function sourceCacheDiagnostics() {
   return { entries: sources.size, pending: sourcePending.size, ttl_seconds: sourceTtl / 1000, capacity: 8 };
 }
 export async function loadSourceLines(params: AnalyticsPeriod): Promise<LoadedSource> {
+  if (reportContext.getStore()) {
+    const { loadStreamingSource } = await import("./streaming-source.js");
+    return loadStreamingSource(params);
+  }
   if (!params.moment_from || !params.moment_to) throw new Error("PERIOD_REQUIRED: specify both report dates.");
   const from = normalizeReportMoment(params.moment_from),
     to = normalizeReportMoment(params.moment_to, true);

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+import { jobTools, reportJobs, managedReportNames } from "./report-jobs.js";
+import { reportError } from "./report-errors.js";
 
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { VERSION } from "./version.js";
+import { AuthFailure, createOAuthGuard, loadOAuthConfig } from "./oauth.js";
 import type { ToolDef } from "./types.js";
 
 import { tools as productTools } from "./tools/products.js";
@@ -49,6 +52,7 @@ const allTools: ToolDef[] = [
   ...analyticsTools,
   ...reconciliationTools,
   ...rankingTools,
+  ...jobTools,
   {
     name: "get_mcp_diagnostics",
     description:
@@ -56,13 +60,16 @@ const allTools: ToolDef[] = [
     schema: z.object({ last_events: z.number().int().min(0).max(20).default(5) }),
     handler: async (p) =>
       JSON.stringify({
+        version: VERSION,
+        reports: await reportJobs.diagnostics(),
         scheduler: requestScheduler.diagnostics(p.last_events),
         source_cache: sourceCacheDiagnostics(),
       }),
   },
   {
     name: "read_report_export",
-    description: "Read a page of a saved MCP export. Files expire after one hour or server restart.",
+    description:
+      "Read only a needed page of a saved MCP export URI. Choose its section: detail/dictionary for analytics, ranking for articles, positions for a document, or its list key. Follow next_offset. Persistent job exports survive restart for 24 hours. limit must be 1..100 (default 25); max_bytes 1024..102400. Use next_cursor/next_offset for more rows. Legacy local exports expire after one hour or restart.",
     schema: readExportSchema,
     handler: handleReadExport,
   },
@@ -73,28 +80,21 @@ export const wrap = (handler: (params: any) => Promise<string>) => async (params
   try {
     text = await handler(params);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    const code = /^([A-Z][A-Z0-9_]+):/.exec(message)?.[1] ?? "TOOL_FAILED";
-    const safe =
-      code === "TOOL_FAILED" ? "Operation failed; check configuration and permissions." : message.slice(0, 250);
+    const failure = reportError(error);
+    const payload = { error: failure };
     return {
       isError: true,
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            error: {
-              code,
-              message: safe,
-              action:
-                "Correct parameters or retry later; get_mcp_diagnostics provides safe request diagnostics. No partial report returned.",
-            },
-          }),
-        },
-      ],
+      content: [{ type: "text" as const, text: JSON.stringify(payload) }],
+      structuredContent: payload,
     };
   }
   const content: any[] = [{ type: "text", text }];
+  try {
+    const payload = JSON.parse(text);
+    if (payload?.error) return { isError: true, content, structuredContent: payload };
+  } catch {
+    /* Plain text remains supported. */
+  }
   let result;
   try {
     result = JSON.parse(text);
@@ -124,12 +124,43 @@ function createMcpServer() {
   for (const t of selectedTools()) {
     if (seen.has(t.name)) throw new Error(`Duplicate tool name: ${t.name}`);
     seen.add(t.name);
-    instance.tool(t.name, t.description, t.schema.shape, wrap(t.handler));
+    if (process.env.MCP_AUTH_MODE === "oauth") {
+      instance.registerTool(
+        t.name,
+        {
+          description:
+            t.description +
+            (process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
+              ? " May return job_id and queued/running state within the sync budget. Poll get_report_job for totals/export; do not repeat the full report while running."
+              : ""),
+          inputSchema: t.schema.shape,
+          annotations: { readOnlyHint: t.name !== "cancel_report_job", destructiveHint: false },
+          _meta: { securitySchemes: [{ type: "oauth2", scopes: [process.env.MCP_AUTH_SCOPE ?? "moysklad:read"] }] },
+        },
+        wrap(
+          process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
+            ? (params) => reportJobs.execute(t.name, params)
+            : t.handler,
+        ),
+      );
+    } else {
+      instance.tool(
+        t.name,
+        t.description,
+        t.schema.shape,
+        wrap(
+          process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
+            ? (params) => reportJobs.execute(t.name, params)
+            : t.handler,
+        ),
+      );
+    }
   }
   return instance;
 }
 
 const analyticsNames = new Set([
+  "list_report_jobs",
   "search_products",
   "search_variants",
   "search_assortment",
@@ -145,12 +176,16 @@ const analyticsNames = new Set([
   "read_report_export",
   "get_mcp_diagnostics",
   "list_organizations",
+  "start_report",
+  "get_report_job",
+  "cancel_report_job",
 ]);
 function selectedTools() {
   const profile = process.env.MOYSKLAD_TOOL_PROFILE ?? "full";
   if (profile !== "full" && profile !== "analytics") throw new Error("TOOL_PROFILE: use full or analytics.");
   return profile === "analytics" ? allTools.filter((tool) => analyticsNames.has(tool.name)) : allTools;
 }
+reportJobs.register(allTools);
 const server = createMcpServer();
 const TOOL_COUNT = selectedTools().length;
 
@@ -174,6 +209,8 @@ async function startHttpTransport(port: number) {
   // CORS is opt-in: only emit Access-Control-Allow-Origin when explicitly
   // configured. The HTTP transport exposes tools that act on the configured
   // MoySklad token, so a wildcard default would let any web page drive it.
+  const config = loadOAuthConfig();
+  const auth = config ? createOAuthGuard(config) : undefined;
   const corsOrigin = process.env.MOYSKLAD_HTTP_CORS_ORIGIN;
   const httpServer = createServer(async (req, res) => {
     if (corsOrigin) {
@@ -186,7 +223,25 @@ async function startHttpTransport(port: number) {
       res.end();
       return;
     }
-    if (req.url === "/health") {
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (
+      auth &&
+      [
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-protected-resource/mcp",
+        "/mcp/.well-known/oauth-protected-resource",
+      ].includes(pathname)
+    ) {
+      if (req.method !== "GET") {
+        res.writeHead(405, { Allow: "GET" });
+        res.end();
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify(auth.metadata));
+      return;
+    }
+    if (pathname === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -199,7 +254,15 @@ async function startHttpTransport(port: number) {
       );
       return;
     }
-    if (req.url === "/mcp") {
+    if (pathname === "/mcp") {
+      if (auth) {
+        try {
+          await auth.verify(req);
+        } catch (error) {
+          auth.reject(res, error instanceof AuthFailure ? error : new AuthFailure(503, "auth_unavailable"));
+          return;
+        }
+      }
       // A stateless transport may handle only one request. Keep both the
       // transport and server isolated so concurrent clients can reuse IDs.
       const requestServer = createMcpServer();

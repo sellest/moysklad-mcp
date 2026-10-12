@@ -1,3 +1,4 @@
+import { reportContext, checkCancelled, reportProgress } from "./report-context.js";
 import { PKG_NAME, VERSION } from "./version.js";
 import { RequestScheduler, retryDelayMs } from "./scheduler.js";
 
@@ -105,9 +106,20 @@ function apiCodes(text: string): number[] {
 
 async function moyskladRequest(method: string, path: string, body?: unknown, weight = 1): Promise<unknown> {
   const actualWeight = Math.max(weight, /^\/report\/stock\/(?:all|bystore)(?:\?|$)/.test(path) ? 5 : 1);
+  const requestStarted = Date.now();
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    const release = await requestScheduler.acquire(actualWeight);
+    checkCancelled();
+    if (Date.now() - requestStarted > 60000) throw new Error("API_TIMEOUT: Request time budget exhausted.");
+    const release = await requestScheduler.acquire(
+      actualWeight,
+      reportContext.getStore()?.signal,
+      reportContext.getStore() ? "background" : "interactive",
+    );
     const started = Date.now();
+    if (reportContext.getStore()?.signal.aborted) {
+      release();
+      checkCancelled();
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT);
@@ -128,9 +140,37 @@ async function moyskladRequest(method: string, path: string, body?: unknown, wei
           "User-Agent": USER_AGENT,
         },
         body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
+        signal: reportContext.getStore()
+          ? AbortSignal.any([controller.signal, reportContext.getStore()!.signal])
+          : controller.signal,
       });
-      const text = await response.text();
+      const reader = response.body?.getReader();
+      let text = "",
+        responseBytes = 0;
+      const decoder = new TextDecoder();
+      if (reader)
+        try {
+          while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            responseBytes += chunk.value.byteLength;
+            if (responseBytes > 8 * 1024 * 1024) {
+              await reader.cancel();
+              throw new Error("STORAGE_LIMIT: Upstream page exceeds 8 MiB; use smaller pages.");
+            }
+            text += decoder.decode(chunk.value, { stream: true });
+          }
+          text += decoder.decode();
+        } finally {
+          reader.releaseLock();
+        }
+      else text = await response.text();
+      await reportProgress("upstream", {
+        api_calls: 1,
+        api_bytes: responseBytes,
+        api_duration_ms: Date.now() - started,
+        retries: attempt > 1 ? 1 : 0,
+      });
       clearTimeout(timer);
       requestScheduler.observe(
         response.status,
@@ -164,6 +204,7 @@ async function moyskladRequest(method: string, path: string, body?: unknown, wei
       throw new Error(formatApiError(response.status, text));
     } catch (error) {
       clearTimeout(timer);
+      checkCancelled();
       if (error instanceof DOMException && error.name === "AbortError" && attempt < MAX_RETRIES) {
         console.error(`[moysklad-mcp] Timeout, retry (${attempt}/${MAX_RETRIES})`);
         continue;

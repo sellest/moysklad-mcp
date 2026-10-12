@@ -12,6 +12,26 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("shared paced scheduling", () => {
+  it("lets short reads pass background work while sharing the same pacing", async () => {
+    const scheduler = new RequestScheduler(8, 1);
+    const release = await scheduler.acquire(1, undefined, "background");
+    const order: string[] = [];
+    const background = scheduler.acquire(1, undefined, "background").then((r) => {
+      order.push("background");
+      r();
+    });
+    const interactive = scheduler.acquire().then((r) => {
+      order.push("interactive");
+      r();
+    });
+    release();
+    await vi.advanceTimersByTimeAsync(375);
+    expect(order).toEqual(["interactive"]);
+    await vi.advanceTimersByTimeAsync(375);
+    await Promise.all([background, interactive]);
+    expect(order).toEqual(["interactive", "background"]);
+    expect(scheduler.diagnostics().requests).toBe(3);
+  });
   it("paces by weight and serializes starts rather than releasing a burst", async () => {
     const scheduler = new RequestScheduler(8, 2);
     const release = await scheduler.acquire(5);

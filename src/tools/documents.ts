@@ -383,13 +383,14 @@ export const tools: ToolDef[] = [
   {
     name: "get_documents",
     description:
-      "Generic: list documents of any MoySklad entity type (fallback for entities without a dedicated tool).",
+      "Immediate short read independent of the heavy report worker. List documents by entity type with pagination. Positions require expand=positions or positions.assortment and limit<=100; each positions_export may be incomplete. Use get_document to page remaining positions. Summary covers this page only; follow next_offset.",
     schema: getDocumentsSchema,
     handler: handleGetDocuments,
   },
   {
     name: "get_document",
-    description: "Generic: get a single document of any MoySklad entity type by UUID (positions expanded).",
+    description:
+      "Get a document by entity type and UUID with compact positions. position_id identifies the line; id identifies assortment. Expanded positions may be incomplete: follow positions_export.next_offset using positions_limit/positions_offset. detail=raw returns the original API object.",
     schema: getDocumentSchema,
     handler: handleGetDocument,
   },

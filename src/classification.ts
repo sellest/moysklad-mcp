@@ -55,10 +55,11 @@ export function classify(line: SourceLine, options: ClassificationOptions): Clas
     category: Classification["category"] = null,
     evidence: string | null = null,
   ): Classification => ({ status, reason, category, evidence });
+  if (type === "service") return result("excluded", "service");
+  if (line.assortment.unavailable || line.product?.unavailable) return result("unresolved", "catalog_card_unavailable");
   if (!name) return result("unresolved", "scope_unknown");
   if (!name.includes(lower(options.scope_name_contains ?? "купальник")))
     return result("out_of_scope", "not_in_name_scope");
-  if (type === "service") return result("excluded", "service");
   if (type === "bundle" || (options.exclude_name_contains ?? ["комплект"]).some((word) => name.includes(lower(word))))
     return result("excluded", "bundle_or_set");
   if (

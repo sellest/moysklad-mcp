@@ -21,7 +21,10 @@ const period = {
     .max(100)
     .optional()
     .describe("Organization meta hrefs; omit for all accessible organizations"),
-  refresh_catalog: z.boolean().optional().describe("Bypass the five-minute card cache"),
+  refresh_catalog: z
+    .boolean()
+    .optional()
+    .describe("Reload cards and reclassify the shared snapshot without reloading documents or extending source TTL"),
   refresh_source: z
     .boolean()
     .optional()
@@ -33,6 +36,9 @@ export const analyticsCommon = {
   ...outputSchema,
   detail: outputSchema.detail.describe(
     "Default summary: aggregated rows only. rows/raw: compact position audit plus separate assortment dictionary; not original API documents.",
+  ),
+  fields: outputSchema.fields.describe(
+    "Audit projection: quantity omits money; analysis/default includes size and exact line price; full adds compatibility identifiers. Applies to rows/raw and file audit, not aggregate totals.",
   ),
 };
 export const sizeReportSchema = z.object({
@@ -300,6 +306,10 @@ export async function renderAnalytics(
   kind: "sizes" | "prices",
   source: Awaited<ReturnType<typeof loadSourceLines>>,
 ) {
+  if (source.lineStream) {
+    const { renderStreamingAnalytics } = await import("../streaming-analytics.js");
+    return renderStreamingAnalytics(params, kind, source);
+  }
   const aggregated =
     kind === "sizes"
       ? aggregateSizes(source.lines, params as z.infer<typeof sizeReportSchema>)
