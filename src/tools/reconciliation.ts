@@ -1,5 +1,6 @@
+import { sourcePages } from "../streaming-source.js";
 import { z } from "zod";
-import { fetchAllPages, loadSourceLines, type SourceLine } from "../analytics-data.js";
+import { loadSourceLines, type SourceLine } from "../analytics-data.js";
 import { buildFilter } from "../lib.js";
 import { reportPeriodSchema, reportQuery } from "../report-lib.js";
 import { Exact, netUnitPrice } from "../precision.js";
@@ -31,27 +32,30 @@ type ProductTotal = {
   unknown_prices: number;
 };
 const empty = (): ProductTotal => ({ ...emptyCounts(), sell_sum: "0", return_sum: "0", unknown_prices: 0 });
+function addDocumentTotal(totals: Map<string, ProductTotal>, line: SourceLine) {
+  const id = line.parent_product_id ?? line.assortment.id ?? line.assortment.meta?.href?.split("/").pop();
+  if (!id) throw new Error("ASSORTMENT_ID: cannot reconcile an unidentified position.");
+  const total = totals.get(id) ?? empty();
+  addCount(total, line);
+  const price = netUnitPrice(line.position.price, line.position.discount);
+  if (price === null) total.unknown_prices++;
+  else {
+    const field = line.kind === "sold" ? "sell_sum" : "return_sum";
+    total[field] = new Exact(total[field]).plus(new Exact(price).mul(String(line.position.quantity))).toFixed();
+  }
+  totals.set(id, total);
+  if (totals.size > 50000) throw new Error("STORAGE_LIMIT: Product cardinality budget exceeded.");
+}
 export function documentProductTotals(lines: SourceLine[]): Map<string, ProductTotal> {
   const totals = new Map<string, ProductTotal>();
-  for (const line of lines) {
-    const id = line.parent_product_id ?? line.assortment.id ?? line.assortment.meta?.href?.split("/").pop();
-    if (!id) throw new Error("ASSORTMENT_ID: cannot reconcile an unidentified position.");
-    const total = totals.get(id) ?? empty();
-    addCount(total, line);
-    const price = netUnitPrice(line.position.price, line.position.discount);
-    if (price === null) total.unknown_prices++;
-    else {
-      const field = line.kind === "sold" ? "sell_sum" : "return_sum";
-      total[field] = new Exact(total[field]).plus(new Exact(price).mul(String(line.position.quantity))).toFixed();
-    }
-    totals.set(id, total);
-  }
+  for (const line of lines) addDocumentTotal(totals, line);
   return totals;
 }
 
 export async function handleReconciliation(params: z.infer<typeof reconciliationSchema>) {
   const source = await loadSourceLines({ ...params, limit: 100, offset: 0 });
-  const actual = documentProductTotals(source.lines);
+  const actual = new Map<string, ProductTotal>();
+  for await (const line of source.lineStream ?? source.lines) addDocumentTotal(actual, line);
   const expected = new Map<string, ProductTotal>();
   for (const organization of params.organization_hrefs?.length
     ? [...new Set(params.organization_hrefs)]
@@ -60,17 +64,19 @@ export async function handleReconciliation(params: z.infer<typeof reconciliation
     query.delete("limit");
     query.delete("offset");
     const filter = buildFilter([["organization", organization ?? ""]]);
-    const rows = await fetchAllPages(`/report/profit/byproduct?${query}`, { filter });
-    for (const row of rows) {
-      const id = row.assortment?.id ?? row.assortment?.meta?.href?.split("/").pop();
-      if (!id) throw new Error("REPORT_ID: unidentified profitability row.");
-      const total = expected.get(id) ?? empty();
-      total.sold = new Exact(total.sold).plus(row.sellQuantity).toNumber();
-      total.returned = new Exact(total.returned).plus(row.returnQuantity).toNumber();
-      total.net = new Exact(total.sold).minus(total.returned).toNumber();
-      total.sell_sum = new Exact(total.sell_sum).plus(new Exact(row.sellSum).div(100)).toFixed();
-      total.return_sum = new Exact(total.return_sum).plus(new Exact(row.returnSum).div(100)).toFixed();
-      expected.set(id, total);
+    for await (const page of sourcePages(`/report/profit/byproduct?${query}`, { filter })) {
+      for (const row of page.rows) {
+        const id = row.assortment?.id ?? row.assortment?.meta?.href?.split("/").pop();
+        if (!id) throw new Error("REPORT_ID: unidentified profitability row.");
+        const total = expected.get(id) ?? empty();
+        total.sold = new Exact(total.sold).plus(row.sellQuantity).toNumber();
+        total.returned = new Exact(total.returned).plus(row.returnQuantity).toNumber();
+        total.net = new Exact(total.sold).minus(total.returned).toNumber();
+        total.sell_sum = new Exact(total.sell_sum).plus(new Exact(row.sellSum).div(100)).toFixed();
+        total.return_sum = new Exact(total.return_sum).plus(new Exact(row.returnSum).div(100)).toFixed();
+        expected.set(id, total);
+        if (expected.size > 50000) throw new Error("STORAGE_LIMIT: Product cardinality budget exceeded.");
+      }
     }
   }
   let mismatches = 0;
@@ -102,6 +108,24 @@ export async function handleReconciliation(params: z.infer<typeof reconciliation
     complete: true,
     compared_products: new Set([...actual.keys(), ...expected.keys()]).size,
     mismatches,
+    reconciliation_status: mismatches ? "unresolved_difference" : "matched_on_requested_basis",
+    difference_cause: mismatches
+      ? "Upstream profitability aggregates do not establish document-level operation linkage; no cause inferred."
+      : null,
+    ...(source.passport
+      ? {
+          source_passports: {
+            documents: source.passport,
+            report: {
+              report_basis: "profitability_api",
+              source_kind: "aggregate_report",
+              operation_composition: "not established",
+              document_linkage: "not provided by this endpoint",
+            },
+          },
+          source_completeness: source.completeness,
+        }
+      : {}),
     examples,
     totals: {
       documents: { sold: sum(actual, "sold"), returned: sum(actual, "returned") },
@@ -122,7 +146,7 @@ export const tools: ToolDef[] = [
   {
     name: "reconcile_sales",
     description:
-      "Compare posted line quantities with fresh product profitability. Totals, discrepancy count and at most 10 examples; never two full arrays. Optional decimal monetary comparison uses return-document prices.",
+      "Compare complete posted sale/return quantities with fresh product profitability. Reuses the period source snapshot; refresh_source reloads documents, refresh_catalog reloads cards. Default quantity comparison, up to 3 examples (max 10). Optional money comparison uses return-document prices.",
     schema: reconciliationSchema,
     handler: handleReconciliation,
   },

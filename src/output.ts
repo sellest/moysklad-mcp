@@ -1,5 +1,8 @@
+import { PagedExport, exportManifest, readPagedExport } from "./paged-export.js";
+import { credentialScope, readLines, storePath } from "./report-store.js";
+import { reportContext } from "./report-context.js";
 import { z } from "zod";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -8,7 +11,7 @@ export const outputSchema = {
   detail: z
     .enum(["summary", "rows", "raw"])
     .optional()
-    .describe("summary: totals; rows: compact data; raw: full API data"),
+    .describe("summary: totals for this page; rows/default: compact rows; raw: original API data, ignoring fields"),
   output: z
     .enum(["inline", "file"])
     .optional()
@@ -17,7 +20,7 @@ export const outputSchema = {
     .enum(["quantity", "analysis", "full"])
     .optional()
     .describe(
-      "quantity omits prices/descriptions; analysis includes size and exact price; full includes legacy aliases",
+      "quantity omits money; analysis/default adds available analysis fields; full retains compatibility aliases. Ignored in raw mode.",
     ),
 };
 export interface OutputOptions {
@@ -30,13 +33,26 @@ type ExportEntry = { path: string; expires: number; bytes: number; scope: string
 const entries = new Map<string, ExportEntry>();
 const exportDirectory = join(tmpdir(), "moysklad-mcp-exports", String(process.pid));
 const ttl = 60 * 60 * 1000;
-export function getExportScope(): string {
-  return createHash("sha256")
-    .update(JSON.stringify([process.env.MOYSKLAD_TOKEN, process.env.MOYSKLAD_LOGIN, process.env.MOYSKLAD_PASSWORD]))
-    .digest("hex");
-}
+export const getExportScope = credentialScope;
 
 export async function createExport(value: unknown) {
+  if (reportContext.getStore() || process.env.MOYSKLAD_REPORT_JOBS === "true") {
+    const writer = new PagedExport(undefined, reportContext.getStore()?.jobId ?? null);
+    const metadata: Record<string, any> = {};
+    for (const [key, item] of Object.entries(value as Record<string, any>)) {
+      if (Array.isArray(item)) await writer.append(key, item);
+      else if (key === "dictionary" && item)
+        await writer.append(
+          key,
+          Object.entries(item).map(([key, value]) => ({ key, value })),
+        );
+      else if (key === "positions_export" && Array.isArray(item?.items)) {
+        await writer.append("positions", item.items);
+        metadata.positions_export = { ...item, items: undefined };
+      } else metadata[key] = item;
+    }
+    return writer.finish(metadata);
+  }
   for (const [id, entry] of entries)
     if (entry.expires <= Date.now()) {
       entries.delete(id);
@@ -64,14 +80,32 @@ export async function createExport(value: unknown) {
 export async function readExport(uri: string): Promise<string> {
   const id = /^moysklad-export:\/\/([a-f0-9-]+)$/.exec(uri)?.[1];
   const entry = id ? entries.get(id) : undefined;
-  if (!entry || entry.expires <= Date.now() || entry.scope !== getExportScope())
+  if (!entry) {
+    const manifest = await exportManifest(uri);
+    if (manifest.bytes > 102400)
+      throw new Error("INVALID_ARGUMENT: Large exports must be read with read_report_export.");
+    const result = { ...manifest.metadata };
+    for (const [section, info] of Object.entries(manifest.sections)) {
+      const rows = [];
+      for (const file of info.files)
+        for await (const row of readLines(storePath(credentialScope(), "exports", manifest.id, file))) rows.push(row);
+      if (section === "dictionary") result[section] = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+      else if (section === "positions") result.positions_export = { ...result.positions_export, items: rows };
+      else result[section] = rows;
+    }
+    return JSON.stringify(result);
+  }
+  if (entry.expires <= Date.now() || entry.scope !== getExportScope())
     throw new Error("EXPORT_NOT_FOUND: expired, unknown or unavailable export; regenerate it.");
   return readFile(entry.path, "utf8");
 }
 
 export async function outputResult(value: unknown, summary: unknown, options: OutputOptions): Promise<string> {
   if (options.output === "file") return JSON.stringify({ ...(summary as object), export: await createExport(value) });
-  return JSON.stringify(value);
+  const text = JSON.stringify(value);
+  if (Buffer.byteLength(text) > 102400)
+    return JSON.stringify({ ...(summary as object), output_mode: "automatic_file", export: await createExport(value) });
+  return text;
 }
 
 export function pageInfo(total: number | undefined, returned: number, offset: number, limit: number) {
@@ -88,7 +122,21 @@ export function pageInfo(total: number | undefined, returned: number, offset: nu
 export const readExportSchema = z.object({
   uri: z.string().describe("moysklad-export:// URI from a file response"),
   offset: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(100).default(25),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(25)
+    .describe("Rows per page: 1 through 100 inclusive; default 25. Use next_cursor/next_offset for more rows."),
+  cursor: z.string().regex(/^\d+$/).optional(),
+  max_bytes: z
+    .number()
+    .int()
+    .min(1024)
+    .max(102400)
+    .default(102400)
+    .describe("Response byte budget: 1024 through 102400 inclusive."),
   section: z
     .enum([
       "items",
@@ -107,6 +155,8 @@ export const readExportSchema = z.object({
     .default("detail"),
 });
 export async function handleReadExport(p: z.infer<typeof readExportSchema>): Promise<string> {
+  const id = /^moysklad-export:\/\/([a-f0-9-]+)$/.exec(p.uri)?.[1];
+  if (!id || !entries.has(id)) return readPagedExport(p);
   const parsed = JSON.parse(await readExport(p.uri)) as Record<string, unknown>;
   const rows =
     p.section === "dictionary" && parsed.dictionary

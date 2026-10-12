@@ -1,5 +1,26 @@
 # MCP-сервер для МойСклад — 67 инструментов для ИИ-агента: товары, склад, заказы, финансы
 
+## Large reports in cloud release 3.4.1
+
+[Large report operation and limitations](LARGE_REPORTS.md) describes durable jobs, paged exports, storage budgets, cancellation and restart recovery. Refresh the connection tool list to discover start_report/get_report_job/list_report_jobs/cancel_report_job. Long analytical calls may now return job status rather than wait for the full report.
+
+## Cloud deployment and OAuth
+
+See [the operation guide](LARGE_REPORTS.md) for Docker and report storage requirements. Its HTTP endpoint requires employee OAuth and exposes the 19-tool
+`analytics` profile. Node.js 22.22.1+ is required by this checkout's updated dependencies.
+
+Set `MCP_AUTH_MODE=oauth`, `MOYSKLAD_TOOL_PROFILE=analytics`, `MCP_AUTH_ISSUER`,
+`MCP_AUTH_RESOURCE` (canonical /mcp URL), and `MCP_AUTH_JWKS_URI`; required scope
+`MCP_AUTH_SCOPE` defaults to `moysklad:read`. HTTPS is required except explicit
+localhost testing (`MCP_AUTH_ALLOW_LOCAL_HTTP=true`); Docker's private JWKS hop
+can opt into HTTP using `MCP_AUTH_ALLOW_INTERNAL_JWKS_HTTP=true`. Partial OAuth
+settings fail startup. Access tokens must have a matching issuer/audience/scope,
+valid signature/time claims and no more than five minutes of remaining validity (plus five seconds for issuance rounding/clock drift). Pocket ID preserves `iat` through token refresh, so token age is not used as an expiry check. Protected
+resource metadata is public; all MCP methods require a token. Secrets are mounted
+from files in the cloud Compose stack. `MCP_AUTH_MODE=none` remains the standalone
+local/stdio default; it does not protect a public HTTP endpoint.
+
+
 Если вы искали, как подключить МойСклад к Claude или другому ИИ-агенту, — этот сервер закрывает весь торгово-складской цикл через JSON API 1.2: каталог и цены, остатки по складам, контрагенты, заказы покупателей и поставщикам, отгрузки, приёмки, перемещения, инвентаризации, списания, возвраты, счета, платежи и касса, отчёты по прибыли и оборотам, аудит и вебхуки. Спрашиваете «сколько футболок свободно к продаже» или «какая маржа по каждому товару за август» — получаете таблицу с цифрами, а не выгрузку в Excel. Цены во всех инструментах в рублях (перевод в копейки, которых требует API МойСклад, сервер делает сам), лимит запросов соблюдается автоматически.
 
 [![npm](https://img.shields.io/npm/v/@theyahia/moysklad-mcp)](https://www.npmjs.com/package/@theyahia/moysklad-mcp)
@@ -362,9 +383,9 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 Категории принимают тот же период, организации, классификацию и `quantity_basis`, без top_n/offset и **без ограничений размера или цены**. По умолчанию три строки. Процент = единицы категории / единицы запрошенных явно классифицированных категорий × 100; знаменатель/основание и исключение unresolved/excluded указаны в `denominator`. Для net используются net-единицы; отрицательные значения сохраняются, при нулевом знаменателе процент `null`. Округление десятичное HALF_UP до двух знаков; сумма округлённых долей может отличаться от 100.00.
 
-Контроль всех размеров: продажи **1117 / 166 / 372**, возвраты **25 / 20 / 7**, net **1092 / 146 / 365**, доли gross **67.49% / 10.03% / 22.48%**. Мужской итог отличается от 353 для размеров 24–46. Женский рейтинг: `202-153` — 187 продаж, топ-20 — 742, 203 товара с продажами или возвратами (один — только возврат).
+Контроль всех размеров: продажи **1117 / 166 / 372**, возвраты **25 / 20 / 7**, net **1092 / 146 / 365**, доли gross **71.49% / 10.03% / 22.48%**. Мужской итог отличается от 353 для размеров 24–46. Женский рейтинг: `202-153` — 187 продаж, топ-20 — 742, 203 товара с продажами или возвратами (один — только возврат).
 
-Схемы всех 67 инструментов тоже занимают контекст. Для отчётных задач доступен явный профиль **15 инструментов**:
+Схемы всех 67 инструментов тоже занимают контекст. Для отчётных задач доступен явный профиль **19 инструментов**:
 
 ```powershell
 $env:MOYSKLAD_TOOL_PROFILE = 'analytics'

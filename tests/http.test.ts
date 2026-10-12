@@ -97,18 +97,18 @@ describe("stateless HTTP transport", () => {
       complete: true,
     });
   });
-  it("publishes the explicit 15-tool analytics profile and restores all 67 tools", async () => {
+  it("publishes the explicit 19-tool analytics profile and restores all 71 tools", async () => {
     vi.stubEnv("MOYSKLAD_TOOL_PROFILE", "analytics");
     try {
       const tools = (await (await post({ jsonrpc: "2.0", id: 8, method: "tools/list" })).json()).result.tools;
-      expect(tools).toHaveLength(15);
+      expect(tools).toHaveLength(19);
       expect(tools.some((t: { name: string }) => t.name === "create_demand")).toBe(false);
       const health = await (await fetch(`${baseUrl}/health`)).json();
-      expect(health).toMatchObject({ tools: 15, version: "3.3.0", tool_profile: "analytics" });
+      expect(health).toMatchObject({ tools: 19, version: "3.4.1", tool_profile: "analytics" });
     } finally {
       vi.unstubAllEnvs();
     }
-    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(67);
+    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(71);
   });
   it("returns a concise unavailable-resource error after expiration or lost registry", async () => {
     const response = await post({
@@ -122,7 +122,7 @@ describe("stateless HTTP transport", () => {
     });
     const result = (await response.json()).result;
     expect(result.isError).toBe(true);
-    expect(JSON.parse(result.content[0].text).error.code).toBe("EXPORT_NOT_FOUND");
+    expect(JSON.parse(result.content[0].text).error.code).toBe("EXPIRED_EXPORT");
     expect(result.content[0].text).not.toContain("stack");
   });
 });
