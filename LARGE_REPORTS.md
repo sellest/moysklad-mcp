@@ -1,4 +1,4 @@
-﻿# Durable large reports
+# Durable large reports
 
 Cloud release 3.4.1 adds start_report, get_report_job, list_report_jobs and cancel_report_job. The
 analytics profile has 19 tools; MoySklad business access remains read-only.
@@ -76,9 +76,9 @@ credentials or server paths. Source passports preserve upstream date semantics;
 the account timezone has not been independently verified.
 
 Remaining SRD work includes automatic checkpoint resume, combined monthly
-aggregation, full reconciliation drilldowns, live June 2025 investigation,
+aggregation, full reconciliation drilldowns,
 stronger change-detection/control passes, offboarding tests and measured p95/p99
 under upstream delays. This release does not claim all P0/P1 acceptance criteria.
 
-Cold annual timing remains to be remeasured. Regression tests verify snapshot
-reuse across all report dimensions without repeated upstream calls.
+
+Cold annual retrieval time should be measured on a private test dataset; production business quantities are omitted from this guide.
