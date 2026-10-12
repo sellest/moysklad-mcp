@@ -112,7 +112,7 @@ describe("exact analytics", () => {
         parent_product_id: null,
       }),
       line({ product: { ...product, id: "p2", pathName: "Плавание" }, parent_product_id: "p2" }),
-      line({ product: { ...product, id: "p3", name: "Купальник женский Quatro" }, parent_product_id: "p3" }),
+      line({ product: { ...product, id: "p3", name: "Купальник женский Demo" }, parent_product_id: "p3" }),
     ];
     const sizes = aggregateSizes(lines, sizeReportSchema.parse(period));
     expect(sizes.rows).toHaveLength(12);
@@ -128,7 +128,7 @@ describe("exact analytics", () => {
     expect(prices.unresolved["female_sleeveless:price_unknown"].sold).toBe(1);
   });
   it("does not infer sleeve from brand; an override requires evidence", () => {
-    const unknown = line({ product: { ...product, name: "Купальник женский Quatro" } });
+    const unknown = line({ product: { ...product, name: "Купальник женский Demo" } });
     expect(classify(unknown, {})).toMatchObject({ status: "unresolved", reason: "sleeve_not_explicit" });
     expect(
       classify(unknown, {

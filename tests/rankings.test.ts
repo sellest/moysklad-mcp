@@ -75,19 +75,19 @@ describe("article and category reports", () => {
   it("returns three unrestricted unit percentages with an explicit denominator", () => {
     const data = aggregateCategoriesAndArticles(
       source([
-        line("a", "a", 1117),
-        line("b", "b", 166, "sold", "Купальник женский с рукавом"),
-        line("c", "c", 372, "sold", "Купальник мужской"),
+        line("a", "a", 30),
+        line("b", "b", 20, "sold", "Купальник женский с рукавом"),
+        line("c", "c", 10, "sold", "Купальник мужской"),
         line("c", "c", 7, "returned", "Купальник мужской"),
-        line("unknown", "u", 20, "sold", "Купальник женский Quatro"),
+        line("unknown", "u", 20, "sold", "Купальник женский Demo"),
       ]),
       categoryReportSchema.parse(period),
       "categories",
     ).result;
-    expect(data.rows.map((row) => ("percentage" in row ? row.percentage : null))).toEqual([67.49, 10.03, 22.48]);
-    expect(data.denominator?.quantity).toBe(1655);
+    expect(data.rows.map((row) => ("percentage" in row ? row.percentage : null))).toEqual([50, 33.33, 16.67]);
+    expect(data.denominator?.quantity).toBe(60);
     expect(data.unresolved.sleeve_not_explicit.sold).toBe(20);
-    expect(data.accounting.in_scope.sold).toBe(1675);
+    expect(data.accounting.in_scope.sold).toBe(80);
   });
   it("keeps zero/negative net denominators explicit rather than silently treating net as gross", () => {
     const zero = aggregateCategoriesAndArticles(

@@ -325,8 +325,8 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 ```json
 {
-  "moment_from": "2026-09-01",
-  "moment_to": "2026-09-30",
+  "moment_from": "2024-01-01",
+  "moment_to": "2024-01-31",
   "size_min": 24,
   "size_max": 46,
   "size_step": 2,
@@ -343,8 +343,8 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 ```json
 {
-  "moment_from": "2026-09-01",
-  "moment_to": "2026-09-30",
+  "moment_from": "2024-01-01",
+  "moment_to": "2024-01-31",
   "bands": [
     {
       "id": "short_1000_2000",
@@ -390,8 +390,8 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 ```json
 {
-  "moment_from": "2026-09-01",
-  "moment_to": "2026-09-30",
+  "moment_from": "2024-01-01",
+  "moment_to": "2024-01-31",
   "categories": ["female_sleeveless", "female_sleeved"],
   "quantity_basis": "sold",
   "top_n": 20,
@@ -530,3 +530,7 @@ npm run coverage   # vitest с покрытием
 MIT
 
 ---
+
+## Synthetic analytics example
+
+[Example parameters](examples/analytics-synthetic.json) use invented identifiers, price bands and classification evidence. Replace them with your own configuration; do not publish production snapshots or live verification output.
