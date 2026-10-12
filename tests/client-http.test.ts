@@ -17,12 +17,13 @@ describe("_formatApiError", () => {
     });
     const msg = _formatApiError(400, body);
     expect(msg).toContain("[3006]");
-    expect(msg).toContain("Field is required");
-    expect(msg).toContain("name must be unique");
-    expect(msg).toContain("parameter: name");
+    expect(msg).not.toContain("Field is required");
+    expect(msg).not.toContain("name must be unique");
+    expect(msg).toContain("Check permissions");
   });
-  it("falls back to raw text for non-JSON bodies", () => {
-    expect(_formatApiError(500, "Internal Error")).toBe("MoySklad HTTP 500: Internal Error");
+  it("does not expose non-JSON bodies", () => {
+    expect(_formatApiError(500, "Internal Error")).toContain("API_HTTP_500");
+    expect(_formatApiError(500, "private customer payload")).not.toContain("private customer");
   });
 });
 
@@ -76,7 +77,7 @@ describe("moyskladRequest (via moyskladGet/Post)", () => {
 
   it("surfaces a parsed MoySklad error on 4xx", async () => {
     mockFetch.mockResolvedValue(res(400, JSON.stringify({ errors: [{ error: "Bad", code: 1001 }] })));
-    await expect(moyskladPost("/entity/product", {})).rejects.toThrow(/\[1001\] Bad/);
+    await expect(moyskladPost("/entity/product", {})).rejects.toThrow(/\[1001\]/);
   });
 
   it("retries on 429 then succeeds", async () => {

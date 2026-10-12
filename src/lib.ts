@@ -4,7 +4,7 @@ import type { MoySkladMeta } from "./types.js";
 
 /** Pretty-print a value as the text payload every tool returns. */
 export function json(value: unknown): string {
-  return JSON.stringify(value, null, 2);
+  return JSON.stringify(value);
 }
 
 // --- Money: MoySklad stores money in kopecks; tools speak rubles. ---

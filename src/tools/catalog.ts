@@ -2,8 +2,12 @@ import { z } from "zod";
 import { moyskladGet, moyskladPost } from "../client.js";
 import { formatList, getDefaultPriceTypeHref, json, kopToRub, listQuery, meta, rubToKop } from "../lib.js";
 import type { ToolDef } from "../types.js";
+import { compactAssortment, projectAssortment } from "../report-lib.js";
+import { outputResult, outputSchema, pageInfo } from "../output.js";
 
 const listParams = {
+  ...outputSchema,
+  characteristic_names: z.array(z.string()).max(20).optional().describe("Selected characteristics; default: Размер"),
   search: z.string().optional().describe("Search query"),
   limit: z.number().int().min(1).max(1000).default(25).describe("Number of results"),
   offset: z.number().int().default(0).describe("Offset for pagination"),
@@ -13,21 +17,39 @@ function firstSalePriceRubles(row: Record<string, unknown>): number | null {
   const sp = (row.salePrices as Array<{ value?: unknown }>) || [];
   return sp.length ? kopToRub(sp[0]?.value) : null;
 }
+function projectCatalog(
+  row: Record<string, unknown>,
+  p: { fields?: "quantity" | "analysis" | "full"; characteristic_names?: string[] },
+) {
+  if (p.fields === "full")
+    return {
+      id: row.id,
+      name: row.name,
+      article: row.article,
+      code: row.code,
+      sale_price_rubles: firstSalePriceRubles(row),
+      meta_href: (row.meta as { href?: string } | undefined)?.href,
+      ...compactAssortment(row, p.characteristic_names),
+    };
+  return {
+    ...projectAssortment(row, p.fields, p.characteristic_names),
+    ...(p.fields === "quantity" ? {} : { sale_price_rubles: firstSalePriceRubles(row) }),
+  };
+}
 
 // --- search_assortment (unified product/variant/service/bundle search) ---
 export const searchAssortmentSchema = z.object(listParams);
 export async function handleSearchAssortment(p: z.infer<typeof searchAssortmentSchema>): Promise<string> {
   const qs = listQuery({ search: p.search, limit: p.limit, offset: p.offset });
   const result = await moyskladGet(`/entity/assortment?${qs}`);
-  return formatList(result, "assortment", (row) => ({
-    id: row.id,
-    name: row.name,
-    article: row.article,
-    code: row.code,
-    type: (row.meta as { type?: string } | undefined)?.type,
-    sale_price_rubles: firstSalePriceRubles(row),
-    meta_href: (row.meta as { href?: string } | undefined)?.href,
-  }));
+  const compact = JSON.parse(formatList(result, "assortment", (row) => projectCatalog(row, p)));
+  const data = result as { meta?: { size?: number }; rows?: unknown[] };
+  const summary = pageInfo(data.meta?.size, data.rows?.length ?? 0, p.offset, p.limit);
+  return outputResult(
+    p.detail === "raw" ? result : p.detail === "summary" && p.output !== "file" ? summary : { ...compact, ...summary },
+    summary,
+    p,
+  );
 }
 
 // --- list_price_types ---
@@ -54,13 +76,14 @@ export const searchVariantsSchema = z.object(listParams);
 export async function handleSearchVariants(p: z.infer<typeof searchVariantsSchema>): Promise<string> {
   const qs = listQuery({ search: p.search, limit: p.limit, offset: p.offset });
   const result = await moyskladGet(`/entity/variant?${qs}`);
-  return formatList(result, "variants", (row) => ({
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    sale_price_rubles: firstSalePriceRubles(row),
-    meta_href: (row.meta as { href?: string } | undefined)?.href,
-  }));
+  const compact = JSON.parse(formatList(result, "variants", (row) => projectCatalog(row, p)));
+  const data = result as { meta?: { size?: number }; rows?: unknown[] };
+  const summary = pageInfo(data.meta?.size, data.rows?.length ?? 0, p.offset, p.limit);
+  return outputResult(
+    p.detail === "raw" ? result : p.detail === "summary" && p.output !== "file" ? summary : { ...compact, ...summary },
+    summary,
+    p,
+  );
 }
 
 // --- search_bundles ---
@@ -68,14 +91,14 @@ export const searchBundlesSchema = z.object(listParams);
 export async function handleSearchBundles(p: z.infer<typeof searchBundlesSchema>): Promise<string> {
   const qs = listQuery({ search: p.search, limit: p.limit, offset: p.offset });
   const result = await moyskladGet(`/entity/bundle?${qs}`);
-  return formatList(result, "bundles", (row) => ({
-    id: row.id,
-    name: row.name,
-    article: row.article,
-    code: row.code,
-    sale_price_rubles: firstSalePriceRubles(row),
-    meta_href: (row.meta as { href?: string } | undefined)?.href,
-  }));
+  const compact = JSON.parse(formatList(result, "bundles", (row) => projectCatalog(row, p)));
+  const data = result as { meta?: { size?: number }; rows?: unknown[] };
+  const summary = pageInfo(data.meta?.size, data.rows?.length ?? 0, p.offset, p.limit);
+  return outputResult(
+    p.detail === "raw" ? result : p.detail === "summary" && p.output !== "file" ? summary : { ...compact, ...summary },
+    summary,
+    p,
+  );
 }
 
 // --- search_services ---
@@ -83,13 +106,14 @@ export const searchServicesSchema = z.object(listParams);
 export async function handleSearchServices(p: z.infer<typeof searchServicesSchema>): Promise<string> {
   const qs = listQuery({ search: p.search, limit: p.limit, offset: p.offset });
   const result = await moyskladGet(`/entity/service?${qs}`);
-  return formatList(result, "services", (row) => ({
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    sale_price_rubles: firstSalePriceRubles(row),
-    meta_href: (row.meta as { href?: string } | undefined)?.href,
-  }));
+  const compact = JSON.parse(formatList(result, "services", (row) => projectCatalog(row, p)));
+  const data = result as { meta?: { size?: number }; rows?: unknown[] };
+  const summary = pageInfo(data.meta?.size, data.rows?.length ?? 0, p.offset, p.limit);
+  return outputResult(
+    p.detail === "raw" ? result : p.detail === "summary" && p.output !== "file" ? summary : { ...compact, ...summary },
+    summary,
+    p,
+  );
 }
 
 // --- create_service ---

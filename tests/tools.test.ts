@@ -230,16 +230,16 @@ describe("get_profit_report", () => {
 });
 
 describe("get_sales_report", () => {
-  it("calls report/sales/byproduct and formats rows", async () => {
+  it("calls report/profit/byproduct and formats sales rows", async () => {
     mockGet.mockResolvedValue({
       meta: { size: 1 },
       rows: [{ assortment: { name: "X" }, sellQuantity: 10, sellSum: 500000 }],
     });
     const r = JSON.parse(await handleGetSalesReport({ limit: 10, offset: 0 }));
-    expect(r.items[0].product_name).toBe("X");
+    expect(r.items[0].name).toBe("X");
     expect(r.items[0].sell_quantity).toBe(10);
     expect(r.items[0].sell_sum_rubles).toBe(5000);
-    expect(mockGet.mock.calls[0][0]).toContain("/report/sales/byproduct");
+    expect(mockGet.mock.calls[0][0]).toContain("/report/profit/byproduct");
   });
 });
 

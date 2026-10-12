@@ -1,0 +1,64 @@
+{
+  "moment_from": "2024-01-01",
+  "moment_to": "2024-01-31",
+  "bands": [
+    {
+      "id": "female_sleeveless-0",
+      "category": "female_sleeveless",
+      "min": "0",
+      "max": "1000",
+      "include_min": true,
+      "include_max": false
+    },
+    {
+      "id": "female_sleeveless-1",
+      "category": "female_sleeveless",
+      "min": "1000",
+      "max": "2000",
+      "include_min": true,
+      "include_max": true
+    },
+    {
+      "id": "female_sleeved-0",
+      "category": "female_sleeved",
+      "min": "0",
+      "max": "1000",
+      "include_min": true,
+      "include_max": false
+    },
+    {
+      "id": "female_sleeved-1",
+      "category": "female_sleeved",
+      "min": "1000",
+      "max": "2000",
+      "include_min": true,
+      "include_max": true
+    },
+    {
+      "id": "male-0",
+      "category": "male",
+      "min": "0",
+      "max": "1000",
+      "include_min": true,
+      "include_max": false
+    },
+    {
+      "id": "male-1",
+      "category": "male",
+      "min": "1000",
+      "max": "2000",
+      "include_min": true,
+      "include_max": true
+    }
+  ],
+  "category_overrides": [
+    {
+      "product_id": "00000000-0000-4000-8000-000000000006",
+      "category": "female_sleeveless",
+      "evidence": "Invented fixture classification; no production source."
+    }
+  ],
+  "size_min": 36,
+  "size_max": 40,
+  "size_step": 2
+}

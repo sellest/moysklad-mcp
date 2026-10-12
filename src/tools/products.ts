@@ -2,20 +2,63 @@ import { z } from "zod";
 import { moyskladGet, moyskladPost, moyskladPut } from "../client.js";
 import { buildFilter, getDefaultPriceTypeHref, json, kopToRub, listQuery, meta, rubToKop } from "../lib.js";
 import type { ToolDef } from "../types.js";
+import { outputResult, outputSchema, pageInfo } from "../output.js";
+import { projectAssortment } from "../report-lib.js";
 
 // --- search_products ---
 export const searchProductsSchema = z.object({
+  ...outputSchema,
   search: z.string().optional().describe("Search query for product name"),
   filter_article: z.string().optional().describe("Filter by article/SKU"),
+  archived: z
+    .boolean()
+    .optional()
+    .describe(
+      "true: archived only; false: active only; omit: API default. Query both values separately to include both.",
+    ),
   limit: z.number().int().min(1).max(1000).default(25).describe("Number of results (max 1000)"),
   offset: z.number().int().default(0).describe("Offset for pagination"),
 });
 
 export async function handleSearchProducts(params: z.infer<typeof searchProductsSchema>): Promise<string> {
-  const filter = buildFilter([["article", params.filter_article ?? ""]]);
-  const qs = listQuery({ limit: params.limit, offset: params.offset, search: params.search, filter });
+  const filter = buildFilter([
+    ["article", params.filter_article ?? ""],
+    ["archived", params.archived === undefined ? "" : String(params.archived)],
+  ]);
+  const qs = listQuery({
+    limit: params.limit,
+    offset: params.offset,
+    search: params.search,
+    filter,
+    expand: params.fields === "full" && params.limit <= 100 ? "productFolder" : undefined,
+  });
   const result = await moyskladGet(`/entity/product?${qs}`);
-  return formatProducts(result);
+  const formatted = JSON.parse(formatProducts(result));
+  const data = result as { meta?: { size?: number }; rows?: Record<string, unknown>[] };
+  formatted.products = formatted.products.map((row: Record<string, unknown>, index: number) => {
+    const { sale_price_rubles, buy_price_rubles, ...quantity } = row;
+    if (params.fields !== "full")
+      return {
+        ...projectAssortment(data.rows?.[index], params.fields),
+        ...(params.fields === "quantity" ? {} : { archived: row.archived, sale_price_rubles, buy_price_rubles }),
+      };
+    return {
+      ...quantity,
+      sale_price_rubles,
+      buy_price_rubles,
+      ...projectAssortment(data.rows?.[index], "full"),
+    };
+  });
+  const summary = pageInfo(data.meta?.size, data.rows?.length ?? 0, params.offset, params.limit);
+  return outputResult(
+    params.detail === "raw"
+      ? result
+      : params.detail === "summary" && params.output !== "file"
+        ? summary
+        : { ...formatted, ...summary },
+    summary,
+    params,
+  );
 }
 
 // --- get_product ---
@@ -121,6 +164,9 @@ function formatProduct(raw: unknown): string {
   return json({
     id: p.id,
     name: p.name,
+    path_name: p.pathName ?? null,
+    product_folder: p.productFolder ?? null,
+    archived: p.archived ?? false,
     article: p.article,
     code: p.code,
     description: p.description,
@@ -144,6 +190,9 @@ function formatProducts(raw: unknown): string {
       return {
         id: p.id,
         name: p.name,
+        path_name: p.pathName ?? null,
+        product_folder: p.productFolder ?? null,
+        archived: p.archived ?? false,
         article: p.article,
         code: p.code,
         sale_price_rubles: prices[0]?.value ?? null,

@@ -1,0 +1,271 @@
+{
+  "reference": "Fully synthetic dataset. IDs, articles, prices, quantities and documents were invented; no production snapshot was used.",
+  "config": {
+    "moment_from": "2024-01-01",
+    "moment_to": "2024-01-31",
+    "bands": [
+      {
+        "id": "female_sleeveless-0",
+        "category": "female_sleeveless",
+        "min": "0",
+        "max": "1000",
+        "include_min": true,
+        "include_max": false
+      },
+      {
+        "id": "female_sleeveless-1",
+        "category": "female_sleeveless",
+        "min": "1000",
+        "max": "2000",
+        "include_min": true,
+        "include_max": true
+      },
+      {
+        "id": "female_sleeved-0",
+        "category": "female_sleeved",
+        "min": "0",
+        "max": "1000",
+        "include_min": true,
+        "include_max": false
+      },
+      {
+        "id": "female_sleeved-1",
+        "category": "female_sleeved",
+        "min": "1000",
+        "max": "2000",
+        "include_min": true,
+        "include_max": true
+      },
+      {
+        "id": "male-0",
+        "category": "male",
+        "min": "0",
+        "max": "1000",
+        "include_min": true,
+        "include_max": false
+      },
+      {
+        "id": "male-1",
+        "category": "male",
+        "min": "1000",
+        "max": "2000",
+        "include_min": true,
+        "include_max": true
+      }
+    ],
+    "category_overrides": [
+      {
+        "product_id": "00000000-0000-4000-8000-000000000006",
+        "category": "female_sleeveless",
+        "evidence": "Invented fixture classification; no production source."
+      }
+    ],
+    "size_min": 36,
+    "size_max": 40,
+    "size_step": 2
+  },
+  "products": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Купальник женский без рукава",
+      "pathName": "",
+      "article": "DEMO-A",
+      "meta": {
+        "type": "product"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "Купальник женский с рукавом",
+      "pathName": "",
+      "article": "DEMO-B",
+      "meta": {
+        "type": "product"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "Купальник мужской",
+      "pathName": "",
+      "article": "DEMO-C",
+      "meta": {
+        "type": "product"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "Купальник мужской",
+      "pathName": "",
+      "article": "DEMO-D",
+      "meta": {
+        "type": "product"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "Купальник женский без рукава",
+      "pathName": "",
+      "article": "DEMO-E",
+      "meta": {
+        "type": "product"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "name": "Купальник женский",
+      "pathName": "",
+      "article": "DEMO-F",
+      "meta": {
+        "type": "product"
+      }
+    }
+  ],
+  "assortment": [
+    {
+      "id": "demo-variant-0",
+      "type": "variant",
+      "name": "Synthetic variant 0",
+      "parent_product_id": "00000000-0000-4000-8000-000000000001",
+      "characteristics": [
+        {
+          "name": "Размер",
+          "value": "36"
+        }
+      ]
+    },
+    {
+      "id": "demo-variant-1",
+      "type": "variant",
+      "name": "Synthetic variant 1",
+      "parent_product_id": "00000000-0000-4000-8000-000000000002",
+      "characteristics": [
+        {
+          "name": "Размер",
+          "value": "38"
+        }
+      ]
+    },
+    {
+      "id": "demo-variant-2",
+      "type": "variant",
+      "name": "Synthetic variant 2",
+      "parent_product_id": "00000000-0000-4000-8000-000000000003",
+      "characteristics": [
+        {
+          "name": "Размер",
+          "value": "36"
+        }
+      ]
+    },
+    {
+      "id": "demo-variant-3",
+      "type": "variant",
+      "name": "Synthetic variant 3",
+      "parent_product_id": "00000000-0000-4000-8000-000000000004",
+      "characteristics": [
+        {
+          "name": "Размер",
+          "value": "50"
+        }
+      ]
+    },
+    {
+      "id": "demo-variant-4",
+      "type": "variant",
+      "name": "Synthetic variant 4",
+      "parent_product_id": "00000000-0000-4000-8000-000000000005",
+      "characteristics": [
+        {
+          "name": "Размер",
+          "value": "40"
+        }
+      ]
+    },
+    {
+      "id": "demo-variant-5",
+      "type": "variant",
+      "name": "Synthetic variant 5",
+      "parent_product_id": "00000000-0000-4000-8000-000000000006",
+      "characteristics": [
+        {
+          "name": "Размер",
+          "value": "40"
+        }
+      ]
+    }
+  ],
+  "lines": [
+    [
+      "d1",
+      "demand",
+      "demo-variant-0",
+      10,
+      50000,
+      0
+    ],
+    [
+      "r1",
+      "salesreturn",
+      "demo-variant-0",
+      1,
+      50000,
+      0
+    ],
+    [
+      "d2",
+      "demand",
+      "demo-variant-1",
+      5,
+      150000,
+      0
+    ],
+    [
+      "r2",
+      "salesreturn",
+      "demo-variant-1",
+      2,
+      150000,
+      0
+    ],
+    [
+      "d3",
+      "demand",
+      "demo-variant-2",
+      7,
+      75000,
+      0
+    ],
+    [
+      "r3",
+      "salesreturn",
+      "demo-variant-2",
+      1,
+      75000,
+      0
+    ],
+    [
+      "d4",
+      "demand",
+      "demo-variant-3",
+      3,
+      75000,
+      0
+    ],
+    [
+      "r4",
+      "salesreturn",
+      "demo-variant-4",
+      2,
+      50000,
+      0
+    ],
+    [
+      "d5",
+      "demand",
+      "demo-variant-5",
+      4,
+      250000,
+      0
+    ]
+  ]
+}

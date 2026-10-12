@@ -2,3 +2,22 @@ node_modules/
 dist/
 coverage/
 *.tgz
+.tools/
+token.txt
+.env
+.env.*
+!.env.example
+
+# Private integration inputs and generated business artifacts
+verification/
+secrets/
+runtime/
+reports/
+exports/
+jobs/
+data/
+*.log
+*.sqlite*
+*.db*
+*.key
+*.pem

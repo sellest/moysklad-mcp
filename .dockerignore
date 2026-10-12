@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+coverage
+.tools
+.env
+.env.*
+token.txt
+tests
+verification
+examples
+.claude

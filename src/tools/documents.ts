@@ -1,6 +1,17 @@
 import { z } from "zod";
-import { moyskladPost } from "../client.js";
-import { buildDocBody, fetchDocument, fetchDocumentList, formatDocument, positionInputSchema } from "../lib.js";
+import { moyskladGet, moyskladPost } from "../client.js";
+import {
+  buildDocBody,
+  documentFields,
+  fetchDocumentList,
+  formatDocument,
+  kopToRub,
+  listQuery,
+  positionInputSchema,
+} from "../lib.js";
+import { assortmentFields, projectAssortment } from "../report-lib.js";
+import { outputResult, outputSchema, pageInfo, type OutputOptions } from "../output.js";
+import { displayPrice, netUnitPrice, priceRules } from "../precision.js";
 import type { ToolDef } from "../types.js";
 
 // Reusable schema fragments.
@@ -166,26 +177,134 @@ export async function handleCreatePurchaseReturn(p: z.infer<typeof createPurchas
 
 // --- generic document access (fallback for any entity type) ---
 export const getDocumentsSchema = z.object({
+  ...outputSchema,
   entity_type: z.string().describe("MoySklad entity type, e.g. 'invoiceout', 'paymentin', 'retaildemand', 'move'"),
   search: z.string().optional().describe("Search by name/number"),
   filter: z.string().optional().describe("Raw MoySklad filter expression, e.g. 'name=00001'"),
   limit: z.number().int().min(1).max(1000).default(25).describe("Number of results"),
   offset: z.number().int().default(0).describe("Offset for pagination"),
+  expand: z
+    .enum(["positions", "positions.assortment"])
+    .optional()
+    .describe(
+      "Include line items; positions.assortment also expands product details. Requires limit <= 100. Check positions_export.complete.",
+    ),
 });
 export async function handleGetDocuments(p: z.infer<typeof getDocumentsSchema>): Promise<string> {
-  return fetchDocumentList(
-    p.entity_type,
-    { search: p.search, filter: p.filter, limit: p.limit, offset: p.offset },
-    "documents",
-  );
+  if (p.expand && p.limit > 100) throw new Error("Expanded document lists require limit <= 100.");
+  const qs = listQuery({ ...p, expand: p.detail === "summary" && p.output !== "file" ? undefined : p.expand });
+  const result = (await moyskladGet(`/entity/${p.entity_type}?${qs}`)) as {
+    meta?: { size?: number };
+    rows?: Record<string, unknown>[];
+  };
+  const rows = result.rows ?? [];
+  const summary = pageInfo(result.meta?.size, rows.length, p.offset, p.limit);
+  const value =
+    p.detail === "raw"
+      ? result
+      : {
+          ...summary,
+          ...(p.detail === "summary" && p.output !== "file"
+            ? {}
+            : {
+                documents: rows.map((row) => ({
+                  ...compactHeader(row, p.fields),
+                  ...(p.expand ? { positions_export: exportPositions(row.positions, p) } : {}),
+                })),
+              }),
+        };
+  return outputResult(value, summary, p);
 }
 
 export const getDocumentSchema = z.object({
+  ...outputSchema,
   entity_type: z.string().describe("MoySklad entity type, e.g. 'customerorder', 'demand', 'supply'"),
   id: z.string().describe("Document UUID"),
+  positions_limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe("Fetch a separate positions page of this size, with expanded assortment"),
+  positions_offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Fetch a separate positions page starting here; follow positions_export.next_offset"),
 });
 export async function handleGetDocument(p: z.infer<typeof getDocumentSchema>): Promise<string> {
-  return fetchDocument(p.entity_type, p.id);
+  const base = `/entity/${p.entity_type}/${p.id}`;
+  const paged = p.positions_limit !== undefined || p.positions_offset !== undefined;
+  const result = (await moyskladGet(paged ? base : `${base}?expand=positions.assortment`)) as Record<string, unknown>;
+  if (paged) {
+    const qs = listQuery({ limit: p.positions_limit ?? 100, offset: p.positions_offset ?? 0, expand: "assortment" });
+    result.positions = await moyskladGet(`${base}/positions?${qs}`);
+  }
+  const positions = exportPositions(result.positions, p);
+  const { items, ...metadata } = positions;
+  const header = compactHeader(result, p.fields);
+  const summary = {
+    ...header,
+    ...metadata,
+    quantity_on_page: items.reduce((sum, item) => sum + (typeof item.quantity === "number" ? item.quantity : 0), 0),
+  };
+  const value =
+    p.detail === "raw"
+      ? result
+      : p.detail === "summary" && p.output !== "file"
+        ? summary
+        : {
+            ...header,
+            ...metadata,
+            ...(p.fields === "quantity" ? {} : { price_rules: priceRules }),
+            positions_export: positions,
+          };
+  return outputResult(value, summary, p);
+}
+
+function compactHeader(raw: Record<string, unknown>, fields: OutputOptions["fields"]) {
+  if (fields === "full") return documentFields(raw);
+  return {
+    id: raw.id ?? null,
+    name: raw.name ?? null,
+    moment: raw.moment ?? null,
+    applicable: raw.applicable ?? null,
+    ...(fields === "quantity" ? {} : { sum_rubles: kopToRub(raw.sum) }),
+  };
+}
+
+export function exportPositions(raw: unknown, options: OutputOptions = {}) {
+  const data = (raw ?? {}) as { meta?: { size?: number; offset?: number }; rows?: Record<string, unknown>[] };
+  const rows = data.rows ?? [];
+  const offset = data.meta?.offset ?? 0;
+  const total = data.meta?.size;
+  return {
+    ...pageInfo(total, rows.length, offset, rows.length || 25),
+    items: rows.map((row) => {
+      const fields =
+        options.fields === "full"
+          ? assortmentFields(row.assortment)
+          : projectAssortment(row.assortment, options.fields);
+      const price = netUnitPrice(row.price, row.discount);
+      const money =
+        options.fields === "quantity"
+          ? {}
+          : {
+              price_rubles: kopToRub(row.price),
+              discount: row.discount ?? null,
+              net_unit_price: price,
+              net_unit_price_display: displayPrice(price),
+            };
+      return {
+        ...(options.fields === "full" ? { id: row.id ?? null } : { position_id: row.id ?? null }),
+        quantity: row.quantity ?? null,
+        ...fields,
+        ...money,
+      };
+    }),
+  };
 }
 
 export const tools: ToolDef[] = [
@@ -264,13 +383,14 @@ export const tools: ToolDef[] = [
   {
     name: "get_documents",
     description:
-      "Generic: list documents of any MoySklad entity type (fallback for entities without a dedicated tool).",
+      "Immediate short read independent of the heavy report worker. List documents by entity type with pagination. Positions require expand=positions or positions.assortment and limit<=100; each positions_export may be incomplete. Use get_document to page remaining positions. Summary covers this page only; follow next_offset.",
     schema: getDocumentsSchema,
     handler: handleGetDocuments,
   },
   {
     name: "get_document",
-    description: "Generic: get a single document of any MoySklad entity type by UUID (positions expanded).",
+    description:
+      "Get a document by entity type and UUID with compact positions. position_id identifies the line; id identifies assortment. Expanded positions may be incomplete: follow positions_export.next_offset using positions_limit/positions_offset. detail=raw returns the original API object.",
     schema: getDocumentSchema,
     handler: handleGetDocument,
   },
