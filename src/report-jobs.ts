@@ -12,6 +12,7 @@ import {
 } from "./report-store.js";
 import { reportContext } from "./report-context.js";
 import { reportError } from "./report-errors.js";
+import { observeOperation } from "./metrics.js";
 import type { ToolDef } from "./types.js";
 export type JobState = "queued" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
 export interface ReportJob {
@@ -332,6 +333,12 @@ export class ReportJobs {
             const timing = "stage_" + (reportContext.getStore()?.stage ?? "processing") + "_ms";
             job.progress[timing] = (job.progress[timing] ?? 0) + Date.now() - stageSince;
             job.finished_at = new Date().toISOString();
+            observeOperation(
+              "report",
+              job.tool,
+              job.state,
+              (Date.parse(job.finished_at) - Date.parse(job.started_at!)) / 1000,
+            );
             await this.save(job);
             console.error(
               JSON.stringify({

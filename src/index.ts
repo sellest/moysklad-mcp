@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { jobTools, reportJobs, managedReportNames } from "./report-jobs.js";
 import { reportError } from "./report-errors.js";
+import { metricsAuthorized, observeOperation, renderMetrics } from "./metrics.js";
 
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -75,11 +76,16 @@ const allTools: ToolDef[] = [
   },
 ];
 
-export const wrap = (handler: (params: any) => Promise<string>) => async (params: any) => {
+export const wrap = (handler: (params: any) => Promise<string>, name?: string) => async (params: any) => {
+  const started = performance.now();
+  const record = (outcome: string) => {
+    if (name) observeOperation("tool", name, outcome, (performance.now() - started) / 1000);
+  };
   let text;
   try {
     text = await handler(params);
   } catch (error) {
+    record("error");
     const failure = reportError(error);
     const payload = { error: failure };
     return {
@@ -91,7 +97,10 @@ export const wrap = (handler: (params: any) => Promise<string>) => async (params
   const content: any[] = [{ type: "text", text }];
   try {
     const payload = JSON.parse(text);
-    if (payload?.error) return { isError: true, content, structuredContent: payload };
+    if (payload?.error) {
+      record("error");
+      return { isError: true, content, structuredContent: payload };
+    }
   } catch {
     /* Plain text remains supported. */
   }
@@ -109,6 +118,7 @@ export const wrap = (handler: (params: any) => Promise<string>) => async (params
       mimeType: "application/json",
       description: "Full export; resources/read or read_report_export",
     });
+  record("success");
   return { content };
 };
 
@@ -141,6 +151,7 @@ function createMcpServer() {
           process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
             ? (params) => reportJobs.execute(t.name, params)
             : t.handler,
+          t.name,
         ),
       );
     } else {
@@ -152,6 +163,7 @@ function createMcpServer() {
           process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
             ? (params) => reportJobs.execute(t.name, params)
             : t.handler,
+          t.name,
         ),
       );
     }
@@ -227,6 +239,37 @@ async function startHttpTransport(port: number) {
       return;
     }
     const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (pathname === "/metrics" && process.env.MCP_METRICS_TOKEN_FILE) {
+      if (!metricsAuthorized(req.headers.authorization)) {
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+      if (req.method !== "GET") {
+        res.writeHead(405, { Allow: "GET" });
+        res.end();
+        return;
+      }
+      try {
+        const jobs = await reportJobs.diagnostics(),
+          api = requestScheduler.diagnostics(0);
+        res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4", "Cache-Control": "no-store" });
+        res.end(
+          renderMetrics({
+            mcp_report_queue_depth: jobs.queue_depth,
+            mcp_report_active_jobs: jobs.active_jobs,
+            mcp_api_requests_total: api.requests,
+            mcp_api_throttled_total: api.throttled,
+            mcp_api_queue_depth: api.queued,
+            mcp_api_active_requests: api.active,
+          }),
+        );
+      } catch {
+        res.writeHead(503);
+        res.end();
+      }
+      return;
+    }
     if (
       auth &&
       [

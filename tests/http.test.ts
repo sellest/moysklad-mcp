@@ -104,7 +104,7 @@ describe("stateless HTTP transport", () => {
       expect(tools).toHaveLength(22);
       expect(tools.some((t: { name: string }) => t.name === "create_demand")).toBe(false);
       const health = await (await fetch(`${baseUrl}/health`)).json();
-      expect(health).toMatchObject({ tools: 22, version: "3.4.2", tool_profile: "analytics" });
+      expect(health).toMatchObject({ tools: 22, version: "3.4.3", tool_profile: "analytics" });
     } finally {
       vi.unstubAllEnvs();
     }

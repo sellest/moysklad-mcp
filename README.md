@@ -1,6 +1,6 @@
-# MCP-сервер МойСклад 3.4.2 — ChatGPT, аналитика и управление бизнесом
+# MCP-сервер МойСклад 3.4.3 — ChatGPT, аналитика и управление бизнесом
 
-## Large reports in cloud release 3.4.2
+## Large reports in cloud release 3.4.3
 
 [Large report operation and limitations](LARGE_REPORTS.md) describes durable jobs, paged exports, storage budgets, cancellation and restart recovery. Refresh the connection tool list to discover start_report/get_report_job/cancel_report_job. Long analytical calls may now return job status rather than wait for the full report.
 
@@ -378,7 +378,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 Документы/позиции кешируются отдельно: период + нормализованные организации + учётные данные, без категории/размера/цены в ключе. Рейтинг, категории, размеры, цены и сверка разделяют один снимок. Ответ содержит `snapshot.id`, `captured_at` (начало загрузки), `loaded_at`, `expires_at`, `reused`. Срок — 5 минут после завершения загрузки, максимум 8 снимков в памяти; совпадающие параллельные запросы разделяют одну загрузку. В снимке заморожено и обогащение каталога. `refresh_source: true` перечитывает документы/позиции. `refresh_catalog: true` обновляет карточки действующего снимка без скачивания документов и без продления их срока. Для полного обновления передайте оба флага. Смена учётных данных/организаций/периода или истечение срока исключает переиспользование. Для услуг/комплектов карточки дополнительно не читаются; остальные товары нужны для классификации и совместной сверки.
 
-После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.4.2**, `tool_profile` и `tools`: **71** для `full`, **22** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
+После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.4.3**, `tool_profile` и `tools`: **71** для `full`, **22** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
 
 Проверка исходников: `npm run build`, `npm test`, `npm run lint`. Для интеграционных проверок используйте собственные приватные тестовые данные.
 
@@ -535,7 +535,7 @@ MIT
 
 [Example parameters](examples/analytics-synthetic.json) use invented identifiers, price bands and classification evidence. Replace them with your own configuration; do not publish production snapshots or live verification output.
 
-## Stock reports (3.4.2)
+## Stock reports (3.4.3)
 
 The read-only `analytics` profile includes `get_stock`, `get_stock_by_store` and
 `get_stock_current`. Refresh the connection's action list after updating.
@@ -556,3 +556,5 @@ API payload and supports `stock_type` and `include_zero` (default true). Its zer
 lines still omit goods that never participated in stock operations. Use catalog
 lookups for names/sizes or detailed stock reports. A joined production plan is not
 implemented by these tools.
+
+Internal monitoring: set MCP_METRICS_TOKEN_FILE to a private bearer-token file to enable GET /metrics. Block this endpoint at the public proxy. Exports aggregate tool/report counts, latency histograms, process memory, report queue and API scheduler counters; no customer data or user labels. Counters reset on restart; Prometheus retains history.
