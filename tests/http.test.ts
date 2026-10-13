@@ -3,6 +3,9 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { allTools, startHttpTransport } from "../src/index.js";
 import { createExport } from "../src/output.js";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("stateless HTTP transport", () => {
   let httpServer: Server;
@@ -34,6 +37,29 @@ describe("stateless HTTP transport", () => {
     method: "initialize",
     params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1.0" } },
   };
+
+  it("keeps monitoring disabled by default and requires a separate bearer secret", async () => {
+    expect((await fetch(`${baseUrl}/metrics`)).status).toBe(404);
+    const dir = mkdtempSync(join(tmpdir(), "metrics-http-"));
+    const token = "test-metrics-secret-" + "a".repeat(40);
+    writeFileSync(join(dir, "token"), token);
+    vi.stubEnv("MCP_METRICS_TOKEN_FILE", join(dir, "token"));
+    vi.stubEnv("MOYSKLAD_TOKEN", "synthetic-test-token");
+    try {
+      expect((await fetch(`${baseUrl}/metrics`)).status).toBe(401);
+      const response = await fetch(`${baseUrl}/metrics`, { headers: { Authorization: `Bearer ${token}` } });
+      expect(response.status).toBe(200);
+      const text = await response.text();
+      expect(text).toContain("process_resident_memory_bytes");
+      expect(text).not.toContain(token);
+      expect(
+        (await fetch(`${baseUrl}/metrics`, { method: "POST", headers: { Authorization: `Bearer ${token}` } })).status,
+      ).toBe(405);
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(dir, { recursive: true });
+    }
+  });
 
   it("handles repeated initialization, notification and tool discovery", async () => {
     for (let attempt = 0; attempt < 2; attempt++) {
