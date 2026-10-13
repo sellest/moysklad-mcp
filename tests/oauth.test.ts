@@ -110,7 +110,10 @@ describe("OAuth resource server", () => {
     const res = await request(bearer);
     expect(res.status).toBe(200);
     const tools = (await res.json()).result.tools;
-    expect(tools).toHaveLength(19);
+    expect(tools).toHaveLength(22);
+    for (const name of ["get_stock", "get_stock_by_store", "get_stock_current"])
+      expect(tools.map((t: { name: string }) => t.name)).toContain(name);
+    expect(tools.map((t: { name: string }) => t.name)).not.toContain("create_product");
     expect(tools[0]._meta.securitySchemes).toEqual([{ type: "oauth2", scopes: ["moysklad:read"] }]);
     const call = await request(bearer, "tools/call", { name: "get_mcp_diagnostics", arguments: {} });
     expect(call.status).toBe(200);

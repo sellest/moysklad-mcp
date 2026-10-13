@@ -97,14 +97,14 @@ describe("stateless HTTP transport", () => {
       complete: true,
     });
   });
-  it("publishes the explicit 19-tool analytics profile and restores all 71 tools", async () => {
+  it("publishes the explicit 22-tool analytics profile and restores all 71 tools", async () => {
     vi.stubEnv("MOYSKLAD_TOOL_PROFILE", "analytics");
     try {
       const tools = (await (await post({ jsonrpc: "2.0", id: 8, method: "tools/list" })).json()).result.tools;
-      expect(tools).toHaveLength(19);
+      expect(tools).toHaveLength(22);
       expect(tools.some((t: { name: string }) => t.name === "create_demand")).toBe(false);
       const health = await (await fetch(`${baseUrl}/health`)).json();
-      expect(health).toMatchObject({ tools: 19, version: "3.4.1", tool_profile: "analytics" });
+      expect(health).toMatchObject({ tools: 22, version: "3.4.2", tool_profile: "analytics" });
     } finally {
       vi.unstubAllEnvs();
     }

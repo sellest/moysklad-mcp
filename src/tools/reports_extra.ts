@@ -66,13 +66,27 @@ export async function handleGetMoneyReport(): Promise<string> {
 // --- get_stock_current (fast current stock) ---
 export const getStockCurrentSchema = z.object({
   store_href: z.string().optional().describe("Limit to one warehouse (meta href). Omit for all."),
+  stock_type: z
+    .enum(["stock", "freeStock", "quantity", "reserve", "inTransit"])
+    .optional()
+    .describe("Metric; default physical stock. freeStock excludes reserves; quantity includes in-transit."),
+  include_zero: z
+    .boolean()
+    .optional()
+    .describe("Default true: request zeroLines. Missing assortment IDs are not proof of zero."),
 });
 export async function handleGetStockCurrent(p: z.infer<typeof getStockCurrentSchema>): Promise<string> {
   const q = new URLSearchParams();
-  if (p.store_href) q.set("filter", `store=${p.store_href}`);
+  q.set("stockType", p.stock_type ?? "stock");
+  if (p.include_zero !== false) q.set("include", "zeroLines");
+  if (p.store_href) {
+    const match = /^https:\/\/api\.moysklad\.ru\/api\/remap\/1\.2\/entity\/store\/([a-f0-9-]{36})$/i.exec(p.store_href);
+    if (!match) throw new Error("STOCK_FILTER: store_href must be a MoySklad warehouse href.");
+    q.set("filter", `storeId=${match[1]}`);
+  }
   const suffix = q.toString() ? `?${q.toString()}` : "";
   // The "current" endpoints are the lightweight, non-paginated stock reports.
-  const result = await moyskladGet(`/report/stock/all/current${suffix}`);
+  const result = await moyskladGet(`/report/stock/${p.store_href ? "bystore" : "all"}/current${suffix}`);
   return json(result);
 }
 
@@ -97,7 +111,8 @@ export const tools: ToolDef[] = [
   },
   {
     name: "get_stock_current",
-    description: "Fast current stock report (assortment id -> stock), optionally for one warehouse.",
+    description:
+      "Fast unpaginated current stock: assortment IDs and a selected metric, with zero lines by default. No names or sizes: join by assortmentId to search_variants/catalog, or use get_stock for explicit sizes. stock=physical, freeStock=stock-reserve, quantity includes inTransit. Missing IDs are not proof of zero. Optionally limit to a warehouse.",
     schema: getStockCurrentSchema,
     handler: handleGetStockCurrent,
   },

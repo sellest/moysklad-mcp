@@ -1,13 +1,13 @@
-# MCP-сервер МойСклад 3.4.1 — ChatGPT, аналитика и управление бизнесом
+# MCP-сервер МойСклад 3.4.2 — ChatGPT, аналитика и управление бизнесом
 
-## Large reports in cloud release 3.4.1
+## Large reports in cloud release 3.4.2
 
 [Large report operation and limitations](LARGE_REPORTS.md) describes durable jobs, paged exports, storage budgets, cancellation and restart recovery. Refresh the connection tool list to discover start_report/get_report_job/cancel_report_job. Long analytical calls may now return job status rather than wait for the full report.
 
 ## Cloud deployment and OAuth
 
 The sibling cloud stack's [README](../README.md) documents Docker/Pocket ID/HTTPS
-operation. Its HTTP endpoint requires employee OAuth and exposes the 19-tool
+operation. Its HTTP endpoint requires employee OAuth and exposes the 22-tool
 `analytics` profile. Node.js 22.22.1+ is required by this checkout's updated dependencies.
 
 Set `MCP_AUTH_MODE=oauth`, `MOYSKLAD_TOOL_PROFILE=analytics`, `MCP_AUTH_ISSUER`,
@@ -22,7 +22,7 @@ from files in the cloud Compose stack. `MCP_AUTH_MODE=none` remains the standalo
 local/stdio default; it does not protect a public HTTP endpoint.
 
 
-Текущая версия содержит **71 инструментов** в профиле `full` и **19 инструментов чтения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
+Текущая версия содержит **71 инструментов** в профиле `full` и **22 инструмента чтения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
 
 Доработки 3.3.0 запускаются **из собранного исходного кода этого репозитория**. Пакет `@theyahia/moysklad-mcp` и npm-значок ниже относятся к исходному проекту: команда `npx @theyahia/moysklad-mcp` не устанавливает наши локальные изменения. До отправки коммита на GitHub удалённая ветка также не содержит локальные изменения.
 
@@ -60,7 +60,7 @@ ChatGPT подключается к серверу по Streamable HTTP. Для 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 ```
 
-Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 15 инструментов чтения; `list_stores` и `get_stock` входят только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
+Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 22 инструмента чтения, включая `get_stock`, `get_stock_by_store` и `get_stock_current`; `list_stores` входит только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
 
 Скрипт установит зависимости при первом запуске, соберёт сервер и запросит токен скрыто (или использует уже заданный `MOYSKLAD_TOKEN`). Токен не сохраняется в файл; `token.txt` скрипт запуска не читает. После завершения скрипт восстанавливает прежние значения `MOYSKLAD_TOKEN` и `HTTP_PORT`. Остановите сервер через `Ctrl+C`. Другой порт: добавьте `-Port 3001`; переустановка зависимостей: `-Reinstall`. Параметр `ExecutionPolicy Bypass` действует только для запускаемого процесса и не меняет системную политику.
 
@@ -378,7 +378,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 Документы/позиции кешируются отдельно: период + нормализованные организации + учётные данные, без категории/размера/цены в ключе. Рейтинг, категории, размеры, цены и сверка разделяют один снимок. Ответ содержит `snapshot.id`, `captured_at` (начало загрузки), `loaded_at`, `expires_at`, `reused`. Срок — 5 минут после завершения загрузки, максимум 8 снимков в памяти; совпадающие параллельные запросы разделяют одну загрузку. В снимке заморожено и обогащение каталога. `refresh_source: true` перечитывает документы/позиции. `refresh_catalog: true` обновляет карточки действующего снимка без скачивания документов и без продления их срока. Для полного обновления передайте оба флага. Смена учётных данных/организаций/периода или истечение срока исключает переиспользование. Для услуг/комплектов карточки дополнительно не читаются; остальные товары нужны для классификации и совместной сверки.
 
-После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.4.1**, `tool_profile` и `tools`: **71** для `full`, **19** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
+После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.4.2**, `tool_profile` и `tools`: **71** для `full`, **22** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
 
 Проверка исходников: `npm run build`, `npm test`, `npm run lint`. Для интеграционных проверок используйте собственные приватные тестовые данные.
 
@@ -467,7 +467,7 @@ node dist/index.js --http 3000
 | `MOYSKLAD_LOGIN` / `MOYSKLAD_PASSWORD` | —            | Basic-авторизация                                                 |
 | `MOYSKLAD_RATE_BUCKET`                 | `8`          | Бюджет веса за 3 секунды; равномерный запуск запросов             |
 | `MOYSKLAD_MAX_CONCURRENT`              | `2`          | Параллельные запросы одного процесса, максимум 5                  |
-| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (67 инструментов) или `analytics` (15 инструментов чтения) |
+| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (71 инструмент) или `analytics` (22 инструмента чтения) |
 | `MOYSKLAD_DIAGNOSTICS`                 | —            | `1`: все безопасные события в stderr; события 429 пишутся всегда  |
 | `MOYSKLAD_HTTP_CORS_ORIGIN`            | —            | Разрешённый CORS-origin для HTTP-транспорта                       |
 | `HTTP_PORT`                            | —            | Запустить транспорт Streamable HTTP на этом порту                 |
@@ -534,3 +534,25 @@ MIT
 ## Synthetic analytics example
 
 [Example parameters](examples/analytics-synthetic.json) use invented identifiers, price bands and classification evidence. Replace them with your own configuration; do not publish production snapshots or live verification output.
+
+## Stock reports (3.4.2)
+
+The read-only `analytics` profile includes `get_stock`, `get_stock_by_store` and
+`get_stock_current`. Refresh the connection's action list after updating.
+Detailed reports default to `group_by=variant` and `stock_mode=all`; zero available
+stock is not suppressed. Follow `next_offset` until null. Each page is enriched
+in batches of at most 20 cards with assortment ID, parent ID, parent article,
+explicit size and characteristics. Sizes are never inferred from names.
+
+`stock` is physical on hand; `free_stock = stock - reserve`;
+`quantity = stock - reserve + inTransit`. These are distinct from net sales.
+Warehouse reports preserve warehouse IDs. Unknown values are null, and unavailable
+catalog cards remain identifiable. Do not add parent and modification rows together
+or assume an absent row means zero.
+
+Use `store_href` to restrict a warehouse and either `product_href`, `variant_href`
+or `search` to restrict assortment. The fast report retains its compact ID-based
+API payload and supports `stock_type` and `include_zero` (default true). Its zero
+lines still omit goods that never participated in stock operations. Use catalog
+lookups for names/sizes or detailed stock reports. A joined production plan is not
+implemented by these tools.

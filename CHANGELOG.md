@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.4.2
+
+- Expose three read-only stock tools in the 22-tool analytics profile.
+- Default detailed stock to modifications and explicit zero-inclusive API filters.
+- Batch-enrich stock pages with parent article, explicit size and assortment IDs;
+  preserve warehouse IDs, reserve, transit, free stock and available quantity.
+- Fix fast warehouse stock filtering; expose metric selection and zero lines.
+- Add regression tests for zero/low stock, joins, bounded enrichment, pagination,
+  null values and OAuth tool discovery.
+
 All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
