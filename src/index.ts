@@ -173,6 +173,7 @@ function createMcpServer() {
 
 const analyticsNames = new Set([
   "get_stock",
+  "get_stock_at_date",
   "get_stock_by_store",
   "get_stock_current",
   "list_report_jobs",

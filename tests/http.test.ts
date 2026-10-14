@@ -123,18 +123,18 @@ describe("stateless HTTP transport", () => {
       complete: true,
     });
   });
-  it("publishes the explicit 22-tool analytics profile and restores all 71 tools", async () => {
+  it("publishes the explicit 23-tool analytics profile and restores all 72 tools", async () => {
     vi.stubEnv("MOYSKLAD_TOOL_PROFILE", "analytics");
     try {
       const tools = (await (await post({ jsonrpc: "2.0", id: 8, method: "tools/list" })).json()).result.tools;
-      expect(tools).toHaveLength(22);
+      expect(tools).toHaveLength(23);
       expect(tools.some((t: { name: string }) => t.name === "create_demand")).toBe(false);
       const health = await (await fetch(`${baseUrl}/health`)).json();
-      expect(health).toMatchObject({ tools: 22, version: "3.4.3", tool_profile: "analytics" });
+      expect(health).toMatchObject({ tools: 23, version: "3.4.4", tool_profile: "analytics" });
     } finally {
       vi.unstubAllEnvs();
     }
-    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(71);
+    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(72);
   });
   it("returns a concise unavailable-resource error after expiration or lost registry", async () => {
     const response = await post({

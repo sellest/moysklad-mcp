@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.4.4
+
+- Add read-only get_stock_at_date for end-of-day physical balances, combined or by warehouse.
+- Preserve explicit modification identities/sizes and pagination; disclose current catalog metadata.
+- Validate closed calendar days in the configured API timezone; omit unverified historical reserves/prices.
+
+
 ## 3.4.2
 
 - Expose three read-only stock tools in the 22-tool analytics profile.

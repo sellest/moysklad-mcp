@@ -38,6 +38,7 @@ export interface ReportJob {
   cancel_requested_at?: string;
 }
 const supported = new Set([
+  "get_stock_at_date",
   "get_sales_by_size",
   "get_sales_by_price",
   "get_sales_by_category",
@@ -304,6 +305,13 @@ export class ReportJobs {
                       (100 * (job.progress.processed_positions ?? job.progress.enriched_positions ?? 0)) /
                         job.progress.expected_positions,
                     ),
+                  ),
+                );
+              if (job.progress.expected_warehouse_balances > 0)
+                job.percent = Math.min(
+                  99,
+                  Math.floor(
+                    (100 * (job.progress.processed_warehouse_balances ?? 0)) / job.progress.expected_warehouse_balances,
                   ),
                 );
               if (checkpoint !== undefined) job.checkpoint = checkpoint;

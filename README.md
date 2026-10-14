@@ -1,13 +1,13 @@
-# MCP-сервер МойСклад 3.4.3 — ChatGPT, аналитика и управление бизнесом
+# MCP-сервер МойСклад 3.4.4 — ChatGPT, аналитика и управление бизнесом
 
-## Large reports in cloud release 3.4.3
+## Large reports in cloud release 3.4.4
 
 [Large report operation and limitations](LARGE_REPORTS.md) describes durable jobs, paged exports, storage budgets, cancellation and restart recovery. Refresh the connection tool list to discover start_report/get_report_job/cancel_report_job. Long analytical calls may now return job status rather than wait for the full report.
 
 ## Cloud deployment and OAuth
 
 The sibling cloud stack's [README](../README.md) documents Docker/Pocket ID/HTTPS
-operation. Its HTTP endpoint requires employee OAuth and exposes the 22-tool
+operation. Its HTTP endpoint requires employee OAuth and exposes the 23-tool
 `analytics` profile. Node.js 22.22.1+ is required by this checkout's updated dependencies.
 
 Set `MCP_AUTH_MODE=oauth`, `MOYSKLAD_TOOL_PROFILE=analytics`, `MCP_AUTH_ISSUER`,
@@ -22,7 +22,7 @@ from files in the cloud Compose stack. `MCP_AUTH_MODE=none` remains the standalo
 local/stdio default; it does not protect a public HTTP endpoint.
 
 
-Текущая версия содержит **71 инструментов** в профиле `full` и **22 инструмента чтения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
+Текущая версия содержит **72 инструмента** в профиле `full` и **23 инструмента чтения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
 
 Доработки 3.3.0 запускаются **из собранного исходного кода этого репозитория**. Пакет `@theyahia/moysklad-mcp` и npm-значок ниже относятся к исходному проекту: команда `npx @theyahia/moysklad-mcp` не устанавливает наши локальные изменения. До отправки коммита на GitHub удалённая ветка также не содержит локальные изменения.
 
@@ -60,7 +60,7 @@ ChatGPT подключается к серверу по Streamable HTTP. Для 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 ```
 
-Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 22 инструмента чтения, включая `get_stock`, `get_stock_by_store` и `get_stock_current`; `list_stores` входит только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
+Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 23 инструмента чтения, включая `get_stock`, `get_stock_by_store` и `get_stock_current`; `list_stores` входит только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
 
 Скрипт установит зависимости при первом запуске, соберёт сервер и запросит токен скрыто (или использует уже заданный `MOYSKLAD_TOKEN`). Токен не сохраняется в файл; `token.txt` скрипт запуска не читает. После завершения скрипт восстанавливает прежние значения `MOYSKLAD_TOKEN` и `HTTP_PORT`. Остановите сервер через `Ctrl+C`. Другой порт: добавьте `-Port 3001`; переустановка зависимостей: `-Reinstall`. Параметр `ExecutionPolicy Bypass` действует только для запускаемого процесса и не меняет системную политику.
 
@@ -378,7 +378,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 Документы/позиции кешируются отдельно: период + нормализованные организации + учётные данные, без категории/размера/цены в ключе. Рейтинг, категории, размеры, цены и сверка разделяют один снимок. Ответ содержит `snapshot.id`, `captured_at` (начало загрузки), `loaded_at`, `expires_at`, `reused`. Срок — 5 минут после завершения загрузки, максимум 8 снимков в памяти; совпадающие параллельные запросы разделяют одну загрузку. В снимке заморожено и обогащение каталога. `refresh_source: true` перечитывает документы/позиции. `refresh_catalog: true` обновляет карточки действующего снимка без скачивания документов и без продления их срока. Для полного обновления передайте оба флага. Смена учётных данных/организаций/периода или истечение срока исключает переиспользование. Для услуг/комплектов карточки дополнительно не читаются; остальные товары нужны для классификации и совместной сверки.
 
-После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.4.3**, `tool_profile` и `tools`: **71** для `full`, **22** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
+После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.4.4**, `tool_profile` и `tools`: **72** для `full`, **23** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
 
 Проверка исходников: `npm run build`, `npm test`, `npm run lint`. Для интеграционных проверок используйте собственные приватные тестовые данные.
 
@@ -467,7 +467,7 @@ node dist/index.js --http 3000
 | `MOYSKLAD_LOGIN` / `MOYSKLAD_PASSWORD` | —            | Basic-авторизация                                                 |
 | `MOYSKLAD_RATE_BUCKET`                 | `8`          | Бюджет веса за 3 секунды; равномерный запуск запросов             |
 | `MOYSKLAD_MAX_CONCURRENT`              | `2`          | Параллельные запросы одного процесса, максимум 5                  |
-| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (71 инструмент) или `analytics` (22 инструмента чтения) |
+| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (72 инструмента) или `analytics` (23 инструмента чтения) |
 | `MOYSKLAD_DIAGNOSTICS`                 | —            | `1`: все безопасные события в stderr; события 429 пишутся всегда  |
 | `MOYSKLAD_HTTP_CORS_ORIGIN`            | —            | Разрешённый CORS-origin для HTTP-транспорта                       |
 | `HTTP_PORT`                            | —            | Запустить транспорт Streamable HTTP на этом порту                 |
@@ -535,7 +535,7 @@ MIT
 
 [Example parameters](examples/analytics-synthetic.json) use invented identifiers, price bands and classification evidence. Replace them with your own configuration; do not publish production snapshots or live verification output.
 
-## Stock reports (3.4.3)
+## Stock reports (3.4.4)
 
 The read-only `analytics` profile includes `get_stock`, `get_stock_by_store` and
 `get_stock_current`. Refresh the connection's action list after updating.
@@ -558,3 +558,34 @@ lookups for names/sizes or detailed stock reports. A joined production plan is n
 implemented by these tools.
 
 Internal monitoring: set MCP_METRICS_TOKEN_FILE to a private bearer-token file to enable GET /metrics. Block this endpoint at the public proxy. Exports aggregate tool/report counts, latency histograms, process memory, report queue and API scheduler counters; no customer data or user labels. Counters reset on restart; Prometheus retains history.
+
+
+## Historical physical stock (3.4.4)
+
+Historical reads explicitly include active and archived assortment. Native
+`stock/bystore` omits archived rows on the verified account, so historical warehouse
+breakdown uses `stock/all` filtered per warehouse and batches of 20 assortment
+references. Missing warehouse balances remain null with `stock_status=not_returned`.
+Long reads support durable `start_report` / `get_report_job` / cancellation;
+`output=file` exports the requested page, not the entire catalog.
+
+`get_stock_at_date` is available in both profiles (23 analytics / 72 full).
+Example: `{"date":"2026-09-14","by_store":true,"group_by":"variant","limit":25}`.
+It requests the authoritative stock report with `filter=moment=2026-09-14 23:59:59.999`.
+Use `by_store=false` (default) for combined balances, or true for warehouse rows;
+`store_href` restricts either mode to one warehouse. Name search, product/variant
+filters, zero-stock modes and pagination follow the existing stock tool contract.
+Follow `next_offset` until null; an absent row is not proof of zero.
+
+Only completed calendar days are accepted. For today use `get_stock`.
+`MOYSKLAD_REPORT_TIMEZONE` defaults to Europe/Moscow and must match the timezone
+used for API report timestamps; the host UTC timezone does not shift the requested
+date. Output states `date`, `as_of`, `timezone`, retrieval time and source.
+
+`stock` is physical on hand at the requested moment. Reserves, transit, available
+quantity and prices are omitted rather than presented as verified historical
+values. Names, articles, sizes and warehouse labels come from the current catalog;
+unavailable cards remain identifiable and unknown fields stay null. This is a
+recalculation from currently accessible documents, not a frozen historic database:
+backdated edits, API recalculation lag, archive/visibility rules and changes between
+pages can affect results. No technical-modification exclusions are inferred.

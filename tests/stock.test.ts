@@ -3,6 +3,7 @@ vi.mock("../src/client.js", () => ({ moyskladGet: vi.fn() }));
 import { moyskladGet } from "../src/client.js";
 import { getStockSchema, getStockByStoreSchema, handleGetStock, handleGetStockByStore } from "../src/tools/stock.js";
 import { handleGetStockCurrent } from "../src/tools/reports_extra.js";
+import { getStockAtDateSchema, handleGetStockAtDate, historicalStockMoment } from "../src/tools/stock.js";
 const get = vi.mocked(moyskladGet);
 const root = "https://api.moysklad.ru/api/remap/1.2/entity/";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -19,6 +20,117 @@ const variant = (n: number) => ({
   },
 });
 beforeEach(() => get.mockReset());
+describe("historical physical stock", () => {
+  it("uses the date's final millisecond, keeps identifiers and zero stock, and omits unverified historical fields", async () => {
+    get.mockResolvedValueOnce({
+      meta: { size: 2 },
+      rows: [{ meta: variant(1).meta, stock: 0, reserve: 20, inTransit: 30, quantity: 10, salePrice: 10000 }],
+    });
+    get.mockResolvedValueOnce({ meta: { size: 1 }, rows: [variant(1)] });
+    const r = JSON.parse(await handleGetStockAtDate(getStockAtDateSchema.parse({ date: "2026-09-14", limit: 1 })));
+    const q = new URL(get.mock.calls[0][0], "https://example.com").searchParams;
+    expect(q.get("filter")).toBe(
+      "stockMode=all;quantityMode=all;moment=2026-09-14 23:59:59.999;archived=true;archived=false",
+    );
+    expect(r).toMatchObject({
+      date: "2026-09-14",
+      as_of: "2026-09-14 23:59:59.999",
+      timezone: "Europe/Moscow",
+      catalog_as_of: "current",
+      by_store: false,
+      next_offset: 1,
+    });
+    expect(r.items[0]).toMatchObject({ stock: 0, size: 38, article: "DEMO", assortment_id: id(1) });
+    for (const key of ["reserve", "quantity", "inTransit", "free_stock", "sale_price_rubles"])
+      expect(r.items[0]).not.toHaveProperty(key);
+  });
+  it("applies the identical historical moment to warehouse and assortment filters", async () => {
+    get.mockResolvedValueOnce({
+      meta: { size: 1 },
+      rows: [
+        {
+          meta: variant(1).meta,
+          stockByStore: [
+            { meta: { href: root + "store/" + id(8) }, name: "Demo", stock: 2, reserve: 99, inTransit: 8 },
+          ],
+        },
+      ],
+    });
+    get.mockResolvedValueOnce({ id: id(8), name: "Demo" });
+    get.mockResolvedValueOnce({ meta: { size: 1 }, rows: [{ meta: variant(1).meta, stock: 2 }] });
+    get.mockResolvedValueOnce({ meta: { size: 1 }, rows: [variant(1)] });
+    const r = JSON.parse(
+      await handleGetStockAtDate(
+        getStockAtDateSchema.parse({
+          date: "2026-09-14",
+          by_store: true,
+          store_href: root + "store/" + id(8),
+          variant_href: root + "variant/" + id(1),
+          offset: 2,
+        }),
+      ),
+    );
+    const u = new URL(get.mock.calls[0][0], "https://example.com");
+    expect(u.pathname).toBe("/report/stock/all");
+    expect(u.searchParams.get("offset")).toBe("2");
+    expect(u.searchParams.get("filter")).toBe(
+      "stockMode=all;quantityMode=all;moment=2026-09-14 23:59:59.999;archived=true;archived=false;store=" +
+        root +
+        "store/" +
+        id(8) +
+        ";variant=" +
+        root +
+        "variant/" +
+        id(1),
+    );
+    expect(r.items[0].by_store[0]).toEqual({
+      store: "Demo",
+      store_id: id(8),
+      store_href: root + "store/" + id(8),
+      stock: 2,
+      stock_status: "reported",
+    });
+  });
+  it("includes archived warehouses and keeps a missing per-warehouse row unknown rather than zero", async () => {
+    get.mockResolvedValueOnce({ meta: { size: 1 }, rows: [{ meta: variant(1).meta, stock: 1 }] });
+    get.mockResolvedValueOnce({
+      meta: { size: 2 },
+      rows: [
+        { id: id(8), name: "Active" },
+        { id: id(9), name: "Archived", archived: true },
+      ],
+    });
+    get.mockResolvedValueOnce({ meta: { size: 1 }, rows: [{ meta: variant(1).meta, stock: 1 }] });
+    get.mockResolvedValueOnce({ meta: { size: 0 }, rows: [] });
+    get.mockResolvedValueOnce({ meta: { size: 1 }, rows: [variant(1)] });
+    const r = JSON.parse(
+      await handleGetStockAtDate(getStockAtDateSchema.parse({ date: "2026-09-14", by_store: true })),
+    );
+    expect(r.items[0].by_store.map((x: any) => x.stock)).toEqual([1, null]);
+    expect(r.items[0].by_store[1].stock_status).toBe("not_returned");
+    expect(get.mock.calls[1][0]).toContain("archived%3Dtrue%3Barchived%3Dfalse");
+    expect(get.mock.calls.every((call) => !call[0].startsWith("/report/stock/bystore"))).toBe(true);
+  });
+  it("validates real calendar dates, leap years and completed days before fetching", () => {
+    const now = new Date("2026-10-14T10:00:00Z");
+    for (const date of [
+      "2026-02-29",
+      "2026-04-31",
+      "2026-13-01",
+      "2026-10-14",
+      "2026-10-15",
+      "2026-09-14 10:00:00",
+      "2026-09-14Z",
+    ])
+      expect(() => historicalStockMoment(date, now)).toThrow("INVALID_ARGUMENT");
+    expect(historicalStockMoment("2024-02-29", now).moment).toBe("2024-02-29 23:59:59.999");
+    expect(get).not.toHaveBeenCalled();
+  });
+  it("uses the configured API day rather than the host UTC day at midnight", () => {
+    expect(historicalStockMoment("2026-10-14", new Date("2026-10-14T21:30:00Z")).date).toBe("2026-10-14");
+    expect(() => historicalStockMoment("2026-10-15", new Date("2026-10-14T21:30:00Z"))).toThrow("completed day");
+  });
+});
 describe("stock identity and quantity semantics", () => {
   it("retains zero, one and two rows, joins explicit sizes in one batch, and exposes pagination", async () => {
     get.mockResolvedValueOnce({
