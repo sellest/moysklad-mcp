@@ -14,6 +14,8 @@ import { reportContext } from "./report-context.js";
 import { reportError } from "./report-errors.js";
 import { observeOperation } from "./metrics.js";
 import type { ToolDef } from "./types.js";
+import { analyticsConfigurationRevision } from "./analytics-query-policy.js";
+import { normalizeAnalyticsQuery } from "./analytics-query-schema.js";
 export type JobState = "queued" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
 export interface ReportJob {
   job_id: string;
@@ -38,6 +40,7 @@ export interface ReportJob {
   cancel_requested_at?: string;
 }
 const supported = new Set([
+  "query_analytics",
   "get_stock_at_date",
   "get_sales_by_size",
   "get_sales_by_price",
@@ -139,7 +142,8 @@ export class ReportJobs {
       if (!tool) throw new Error("INVALID_ARGUMENT: Unsupported report tool.");
       const parsed = tool.schema.safeParse(parameters);
       if (!parsed.success) throw new Error("INVALID_ARGUMENT: Report parameters do not match tool schema.");
-      const params = parsed.data;
+      const params: Record<string, any> =
+        toolName === "query_analytics" ? normalizeAnalyticsQuery(parsed.data) : parsed.data;
       if (Buffer.byteLength(JSON.stringify(params)) > 131072)
         throw new Error("INVALID_ARGUMENT: Parameters too large.");
       if (params.organization_hrefs) params.organization_hrefs = [...new Set(params.organization_hrefs)].sort();
@@ -148,6 +152,7 @@ export class ReportJobs {
       const normalized = { ...params };
       normalized.refresh_source = params.refresh_source === true;
       normalized.refresh_catalog = params.refresh_catalog === true;
+      if (toolName === "query_analytics") normalized.configuration_revision = await analyticsConfigurationRevision();
       const fingerprint = createHash("sha256")
         .update(JSON.stringify(stable({ schema: 2, scope, tool: toolName, params: normalized })))
         .digest("hex");
@@ -161,7 +166,7 @@ export class ReportJobs {
               (!params.refresh_source &&
                 !params.refresh_catalog &&
                 j.state === "succeeded" &&
-                Date.now() - Date.parse(j.finished_at!) < 86400000)),
+                Date.now() - Date.parse(j.finished_at!) < (toolName === "query_analytics" ? 300000 : 86400000))),
         );
       if (previous) return this.public(previous);
       if (records.length >= 256) throw new Error("STORAGE_LIMIT: Job history capacity reached.");
@@ -314,6 +319,19 @@ export class ReportJobs {
                     (100 * (job.progress.processed_warehouse_balances ?? 0)) / job.progress.expected_warehouse_balances,
                   ),
                 );
+              if (job.tool === "query_analytics") {
+                const phase =
+                  stage === "aggregate_documents" && job.progress.expected_documents > 0
+                    ? 70 + (29 * (job.progress.aggregated_documents ?? 0)) / job.progress.expected_documents
+                    : stage === "aggregate_orders" && job.progress.expected_positions > 0
+                      ? 70 + (29 * (job.progress.processed_positions ?? 0)) / job.progress.expected_positions
+                      : stage === "verify_orders" && job.progress.expected_documents > 0
+                        ? 60 + (10 * (job.progress.verified_documents ?? 0)) / job.progress.expected_documents
+                        : job.progress.expected_documents > 0
+                          ? (60 * (job.progress.processed_documents ?? 0)) / job.progress.expected_documents
+                          : null;
+                if (phase !== null) job.percent = Math.max(job.percent ?? 0, Math.min(99, Math.floor(phase)));
+              }
               if (checkpoint !== undefined) job.checkpoint = checkpoint;
               if (checkpoint !== undefined || Date.now() - lastSave >= 1000) {
                 lastSave = Date.now();
@@ -324,7 +342,10 @@ export class ReportJobs {
           async () => {
             try {
               const tool = this.tools.get(job.tool)!;
-              const text = await tool.handler({ ...job.params, output: "file" });
+              const text = await tool.handler({
+                ...job.params,
+                output: job.tool === "query_analytics" ? job.params.output : "file",
+              });
               if (controller.signal.aborted) throw new Error("JOB_CANCELLED: Cancelled.");
               if (Buffer.byteLength(text) > 102400)
                 throw new Error("STORAGE_LIMIT: Job summary exceeds inline budget.");
@@ -370,6 +391,19 @@ export class ReportJobs {
   }
   async execute(tool: string, params: Record<string, any>) {
     const job = await this.start(tool, params);
+    if (tool === "query_analytics") {
+      const current = await this.status(job.job_id);
+      return JSON.stringify(
+        current.state === "succeeded"
+          ? current.result
+          : {
+              ...current,
+              poll_after_ms: 3000,
+              next_action:
+                "Poll get_report_job with this job_id, sequentially after at least 3 seconds; do not repeat query_analytics or fetch order pages.",
+            },
+      );
+    }
     const budget = Math.min(15000, Number(process.env.MOYSKLAD_REPORT_SYNC_MS ?? 15000));
     const until = Date.now() + budget;
     while (Date.now() < until) {

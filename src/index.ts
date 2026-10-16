@@ -28,6 +28,8 @@ import { tools as auditTools } from "./tools/audit.js";
 import { tools as analyticsTools } from "./tools/analytics.js";
 import { tools as reconciliationTools } from "./tools/reconciliation.js";
 import { tools as rankingTools } from "./tools/rankings.js";
+import { tools as contactDeveloperTools } from "./tools/contact-developer.js";
+import { tools as queryAnalyticsTools } from "./tools/query-analytics.js";
 import { requestScheduler } from "./client.js";
 import { sourceCacheDiagnostics } from "./analytics-data.js";
 import { z } from "zod";
@@ -53,6 +55,8 @@ const allTools: ToolDef[] = [
   ...analyticsTools,
   ...reconciliationTools,
   ...rankingTools,
+  ...contactDeveloperTools,
+  ...queryAnalyticsTools,
   ...jobTools,
   {
     name: "get_mcp_diagnostics",
@@ -123,7 +127,13 @@ export const wrap = (handler: (params: any) => Promise<string>, name?: string) =
 };
 
 function createMcpServer() {
-  const instance = new McpServer({ name: "moysklad-mcp", version: VERSION });
+  const instance = new McpServer(
+    { name: "moysklad-mcp", version: VERSION },
+    {
+      instructions:
+        "For analytical questions across customer orders, use query_analytics instead of downloading get_documents pages or running parallel page requests. For delivery city/region rankings use order.delivery.city/order.delivery.region with orders_count and orders_total_rub (each whole order sum once, including delivery). Do not substitute ordered_revenue or download raw orders. A missing region stays absent/null; never infer it from city/postal code/free text. Read missing/excluded counters and disclose default status policy. If aggregate next_offset is non-null, read the remaining aggregate page using the same query; this reuses the source snapshot. Use operation=describe to discover actual category values/status IDs; never invent category aliases or infer sleeves from names. Default order selection is posted except confirmed cancelled statuses; disclose it, and apply explicit user status selection when provided. A query may return job_id; poll get_report_job sequentially at intervals of at least 3 seconds. Partial/unresolved results cannot establish a definitive winner. Files are only for explicit export requests. When the user asks to contact the developer, or a task remains blocked after reasonable recovery, use contact_developer to prepare a concise problem report. Send the returned email through the user's connected Gmail only if a send tool is available, following that connector's approval rules. contact_developer itself never sends mail. If sending is unavailable or fails, provide the draft and explicitly state it was not sent. Never claim delivery without successful Gmail confirmation, invent reproduction steps, or include credentials, full conversation history or customer data dumps.",
+    },
+  );
   instance.resource(
     "report-export",
     new ResourceTemplate("moysklad-export://{id}", { list: undefined }),
@@ -148,8 +158,12 @@ function createMcpServer() {
           _meta: { securitySchemes: [{ type: "oauth2", scopes: [process.env.MCP_AUTH_SCOPE ?? "moysklad:read"] }] },
         },
         wrap(
-          process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
-            ? (params) => reportJobs.execute(t.name, params)
+          t.name === "query_analytics" ||
+            (process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name))
+            ? (params) =>
+                t.name === "query_analytics" && params.operation === "describe"
+                  ? t.handler(params)
+                  : reportJobs.execute(t.name, params)
             : t.handler,
           t.name,
         ),
@@ -160,8 +174,12 @@ function createMcpServer() {
         t.description,
         t.schema.shape,
         wrap(
-          process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
-            ? (params) => reportJobs.execute(t.name, params)
+          t.name === "query_analytics" ||
+            (process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name))
+            ? (params) =>
+                t.name === "query_analytics" && params.operation === "describe"
+                  ? t.handler(params)
+                  : reportJobs.execute(t.name, params)
             : t.handler,
           t.name,
         ),
@@ -195,6 +213,8 @@ const analyticsNames = new Set([
   "start_report",
   "get_report_job",
   "cancel_report_job",
+  "contact_developer",
+  "query_analytics",
 ]);
 function selectedTools() {
   const profile = process.env.MOYSKLAD_TOOL_PROFILE ?? "full";

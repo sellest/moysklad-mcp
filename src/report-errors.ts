@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { reportContext } from "./report-context.js";
 const messages: Record<string, string> = {
+  ANALYTICS_POLICY_UNAVAILABLE:
+    "Confirmed cancellation status reference is missing or outdated; ask the operator to configure MCP_ANALYTICS_ORDER_POLICY_FILE. Use query_analytics operation=describe for source statuses.",
+  CONTACT_NOT_CONFIGURED:
+    "Developer contact is not configured on the MCP server. Ask the server operator to set MCP_DEVELOPER_EMAIL.",
   INVALID_ARGUMENT: "Invalid report parameters.",
   UPSTREAM_TIMEOUT: "MoySklad did not respond within the request budget.",
   RATE_LIMITED: "Upstream request budget exhausted; retry later.",

@@ -1,7 +1,31 @@
 # Durable large reports
 
-Cloud release 3.4.1 adds start_report, get_report_job, list_report_jobs and cancel_report_job. The
-analytics profile has 19 tools; MoySklad business access remains read-only.
+Cloud release 3.6.0 includes start_report, get_report_job, list_report_jobs and
+cancel_report_job. The analytics profile has 25 tools; MoySklad business access
+remains read-only.
+
+For analytical questions across customer orders, use [query_analytics](QUERY_ANALYTICS.md)
+instead of downloading raw document pages. The server reads the complete selected
+period and returns compact aggregate rows, with at most 100 rows per result page.
+City/region rankings use document headers without loading positions or the product
+catalog. orders_count counts documents; orders_total_rub sums each document's sum
+in kopecks exactly once and returns rubles. Regions come only from explicit
+structured address data; absent regions remain absent and are never inferred.
+
+query_analytics always runs through the durable worker, even when
+MOYSKLAD_REPORT_JOBS is disabled; operation=describe runs directly. A query returns
+a job identity immediately or reuses a completed result. Poll get_report_job
+sequentially, no more often than once every three seconds. Do not start parallel
+page requests or repeat the original query to check progress. Inline aggregate
+results are the default; output=file explicitly creates an aggregate export.
+Completed query results and compatible source snapshots are reused for up to five
+minutes. This freshness window is separate from storage retention below.
+
+Query metadata identifies document or position grain, source/matched counts,
+exclusions, unresolved data and stage timings. Document queries report processed
+and expected documents and positions_processed=0. The versioned document snapshot
+stores a compact projection, and a second header pass detects source changes;
+MoySklad pagination still does not provide a transactional snapshot.
 
 Start long work explicitly:
 
@@ -65,8 +89,9 @@ objects. Aggregators flush audit batches of 100 positions. Catalog memory is
 bounded to 16 MiB and 2048 entries; large upstream pages are rejected above 8 MiB.
 Document and position totals are checked and duplicate positions are rejected.
 Captures are non-transactional: equal-total edits during offset pagination cannot
-be ruled out. Metadata says this explicitly; deterministic control passes and
-automatic recovery are later SRD work.
+be ruled out for legacy reports. query_analytics adds deterministic control
+passes, but cannot guarantee isolation from concurrent upstream writes. Automatic
+checkpoint recovery remains future work.
 
 Errors use the same error object in text and structuredContent, including code,
 retryable, correlation_id, job_id, stage and safe_context. Diagnostics include

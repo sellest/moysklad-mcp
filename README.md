@@ -1,4 +1,45 @@
-# MCP-сервер МойСклад 3.4.4 — ChatGPT, аналитика и управление бизнесом
+# MCP-сервер МойСклад 3.6.0 — ChatGPT, аналитика и управление бизнесом
+
+## Универсальная аналитика заказов
+
+`query_analytics` считает агрегаты по всем заказам и позициям периода на сервере.
+Рейтинг городов/явно указанных регионов работает на уровне документов без чтения
+позиций и каталога: `order.delivery.city`, `order.delivery.region`, `orders_count`,
+`orders_total_rub`. Полная сумма заказа учитывается один раз, вместе с доставкой,
+если она входит в документ. Пустой регион остаётся `null`, без восстановления по
+городу или индексу; пропуски и исключения отражаются отдельными счётчиками.
+Поддерживает фильтр цены строки после скидки, реальные группы/атрибуты МойСклад,
+модели, артикулы, модификации и размеры, количество, суммы и уникальные заказы.
+По умолчанию учитывает проведённые заказы, исключая подтверждённые оператором ID
+отменённых статусов. Ответ содержит полноту, причины unresolved и выбранную политику.
+Для выбора фактических категорий и статусов сначала используйте
+`{"dataset":"orders","operation":"describe"}`. SQL, код и произвольные API-пути не принимаются.
+
+Расчёт выполняется через фоновое задание; `get_report_job` возвращает компактные
+строки inline. Выгрузка создаётся только при явном `output="file"`.
+[Контракт, примеры, настройка приватного справочника и ограничения](QUERY_ANALYTICS.md).
+
+## Обращение разработчику
+
+`contact_developer` доступен в профилях `analytics` и `full`. Он готовит письмо
+с запросом клиента, фактическими шагами воспроизведения, ожидаемым и полученным
+результатом; при наличии добавляет `job_id` и `correlation_id`. Адрес получателя
+настраивает оператор через переменную окружения `MCP_DEVELOPER_EMAIL`
+(например, `developer@example.com`); адреса владельца в исходниках нет.
+
+Сам инструмент **не отправляет почту**: возвращает `email.to`, `email.subject`,
+`email.body` и `delivery_status=not_sent`. ChatGPT должен отправить письмо через
+подключённый у клиента Gmail, если там доступен инструмент отправки, и выполнить
+требования этого подключения к подтверждению. Без успешного ответа Gmail нельзя
+говорить, что обращение отправлено. Если отправка недоступна, чат показывает
+готовый текст письма и сообщает об этом. Наличие Google Drive или доступа Gmail
+только для чтения само по себе не даёт возможности отправлять письма.
+
+Перед вызовом следует исключить контакты покупателей, выгрузки заказов, секреты
+и постороннюю переписку. Сервер дополнительно удаляет известные значения учётных
+данных МойСклад, распространённые шаблоны токенов и параметры URL; это не заменяет
+проверку произвольных персональных и коммерческих данных. Письма и переписка
+инструментом не сохраняются и в журналы не выводятся.
 
 ## Large reports in cloud release 3.4.4
 
@@ -7,7 +48,7 @@
 ## Cloud deployment and OAuth
 
 The sibling cloud stack's [README](../README.md) documents Docker/Pocket ID/HTTPS
-operation. Its HTTP endpoint requires employee OAuth and exposes the 23-tool
+operation. Its HTTP endpoint requires employee OAuth and exposes the 25-tool
 `analytics` profile. Node.js 22.22.1+ is required by this checkout's updated dependencies.
 
 Set `MCP_AUTH_MODE=oauth`, `MOYSKLAD_TOOL_PROFILE=analytics`, `MCP_AUTH_ISSUER`,
@@ -22,7 +63,7 @@ from files in the cloud Compose stack. `MCP_AUTH_MODE=none` remains the standalo
 local/stdio default; it does not protect a public HTTP endpoint.
 
 
-Текущая версия содержит **72 инструмента** в профиле `full` и **23 инструмента чтения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
+Текущая версия содержит **74 инструмента** в профиле `full` и **25 инструментов чтения и подготовки обращения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
 
 Доработки 3.3.0 запускаются **из собранного исходного кода этого репозитория**. Пакет `@theyahia/moysklad-mcp` и npm-значок ниже относятся к исходному проекту: команда `npx @theyahia/moysklad-mcp` не устанавливает наши локальные изменения. До отправки коммита на GitHub удалённая ветка также не содержит локальные изменения.
 
@@ -570,7 +611,7 @@ references. Missing warehouse balances remain null with `stock_status=not_return
 Long reads support durable `start_report` / `get_report_job` / cancellation;
 `output=file` exports the requested page, not the entire catalog.
 
-`get_stock_at_date` is available in both profiles (23 analytics / 72 full).
+`get_stock_at_date` is available in both profiles (25 analytics / 74 full).
 Example: `{"date":"2026-09-14","by_store":true,"group_by":"variant","limit":25}`.
 It requests the authoritative stock report with `filter=moment=2026-09-14 23:59:59.999`.
 Use `by_store=false` (default) for combined balances, or true for warehouse rows;
