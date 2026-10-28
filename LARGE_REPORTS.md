@@ -1,6 +1,6 @@
 # Durable large reports
 
-Cloud release 3.6.0 includes start_report, get_report_job, list_report_jobs and
+Cloud release 3.6.1 includes start_report, get_report_job, list_report_jobs and
 cancel_report_job. The analytics profile has 25 tools; MoySklad business access
 remains read-only.
 
@@ -36,7 +36,9 @@ Start long work explicitly:
 Pass that object to start_report, then call get_report_job with the returned
 job_id. Poll conservatively, for example every 5–10 seconds. A queued/running
 response is not a finished business report. On success, result contains the
-summary and an export URI. Read only the needed section with read_report_export;
+requested inline data or, only with output=file, an export URI. Inline next_cursor
+continues through the original tool with response_cursor and the original arguments;
+it does not start another calculation. For explicit files, use read_report_export;
 use next_cursor, limit <=100, and max_bytes <=102400. MCP resources/read refuses
 large exports instead of loading them wholesale.
 
@@ -107,3 +109,12 @@ under upstream delays. This release does not claim all P0/P1 acceptance criteria
 
 
 Cold annual retrieval time should be measured on a private test dataset; production business quantities are omitted from this guide.
+
+Large ordinary responses and streaming reports use private bounded inline snapshots,
+not automatic exports. Pages contain at most 100 rows within the byte budget.
+sections lists available aggregate/audit collections with cursors; pagination
+distinguishes captured collection counts from upstream totals and source offsets.
+Only explicit output=file creates an export resource. Both jobs and standalone
+reads honor this policy. Inline snapshots share the disk quota and retention,
+are isolated by credential and tool, survive restart, and expire explicitly.
+For the complete cursor contract see the README section on inline results.

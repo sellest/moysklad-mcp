@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { jobTools, reportJobs, managedReportNames } from "./report-jobs.js";
 import { reportError } from "./report-errors.js";
+import { inlineTool, readInlineResponse, responseCursorDescription } from "./inline-response.js";
 import { metricsAuthorized, observeOperation, renderMetrics } from "./metrics.js";
 
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -9,6 +10,7 @@ import { VERSION } from "./version.js";
 import { AuthFailure, createOAuthGuard, loadOAuthConfig } from "./oauth.js";
 import type { ToolDef } from "./types.js";
 
+import { tools as productLookupTools } from "./tools/product-lookup.js";
 import { tools as productTools } from "./tools/products.js";
 import { tools as stockTools } from "./tools/stock.js";
 import { tools as counterpartyTools } from "./tools/counterparties.js";
@@ -37,6 +39,7 @@ import { handleReadExport, readExport, readExportSchema } from "./output.js";
 
 const allTools: ToolDef[] = [
   ...productTools,
+  ...productLookupTools,
   ...stockTools,
   ...counterpartyTools,
   ...orderTools,
@@ -87,7 +90,9 @@ export const wrap = (handler: (params: any) => Promise<string>, name?: string) =
   };
   let text;
   try {
-    text = await handler(params);
+    text = params.response_cursor
+      ? await readInlineResponse(params.response_cursor, name ?? "")
+      : await inlineTool.run(name ?? "", () => handler(params));
   } catch (error) {
     record("error");
     const failure = reportError(error);
@@ -153,7 +158,10 @@ function createMcpServer() {
             (process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name)
               ? " May return job_id and queued/running state within the sync budget. Poll get_report_job for totals/export; do not repeat the full report while running."
               : ""),
-          inputSchema: t.schema.shape,
+          inputSchema: {
+            ...t.schema.shape,
+            response_cursor: z.string().max(256).optional().describe(responseCursorDescription),
+          },
           annotations: { readOnlyHint: t.name !== "cancel_report_job", destructiveHint: false },
           _meta: { securitySchemes: [{ type: "oauth2", scopes: [process.env.MCP_AUTH_SCOPE ?? "moysklad:read"] }] },
         },
@@ -172,7 +180,7 @@ function createMcpServer() {
       instance.tool(
         t.name,
         t.description,
-        t.schema.shape,
+        { ...t.schema.shape, response_cursor: z.string().max(256).optional().describe(responseCursorDescription) },
         wrap(
           t.name === "query_analytics" ||
             (process.env.MOYSKLAD_REPORT_JOBS === "true" && managedReportNames.has(t.name))
@@ -196,6 +204,8 @@ const analyticsNames = new Set([
   "get_stock_current",
   "list_report_jobs",
   "search_products",
+  "get_product",
+  "get_products_by_ids",
   "search_variants",
   "search_assortment",
   "get_document",

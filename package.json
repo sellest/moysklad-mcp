@@ -1,6 +1,6 @@
 {
   "name": "@theyahia/moysklad-mcp",
-  "version": "3.6.0",
+  "version": "3.6.3",
   "description": "MCP server for MoySklad - warehouse, inventory, orders, reports (Russia)",
   "type": "module",
   "main": "dist/index.js",

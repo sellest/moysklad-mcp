@@ -1,5 +1,4 @@
-import { PagedExport } from "../paged-export.js";
-import { reportContext } from "../report-context.js";
+import { finishInline, responseWriter } from "../inline-response.js";
 import { z } from "zod";
 import { loadSourceLines, type LoadedSource, type SourceLine } from "../analytics-data.js";
 import { categoryIds, classify } from "../classification.js";
@@ -176,7 +175,7 @@ export function aggregateCategoriesAndArticles(source: LoadedSource, params: Par
 export async function renderCategoryOrRanking(source: LoadedSource, params: Params, kind: "categories" | "articles") {
   if (source.lineStream) {
     const accumulator = createCategoryAccumulator(params, kind);
-    const writer = new PagedExport(undefined, reportContext.getStore()?.jobId ?? null);
+    const writer = await responseWriter(params.output === "file");
     let count = 0;
     const flush = async () => {
       const audit = accumulator.drain();
@@ -192,6 +191,8 @@ export async function renderCategoryOrRanking(source: LoadedSource, params: Para
     await writer.append("rows", result.rows);
     if ("ranking" in audit) await writer.append("ranking", audit.ranking!);
     const { rows: _rows, ...metadata } = result;
+    if (params.output !== "file")
+      return finishInline(writer, { ...metadata, source_completeness: source.completeness });
     return JSON.stringify({
       ...result,
       source_completeness: source.completeness,

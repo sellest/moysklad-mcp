@@ -23,6 +23,7 @@ export class PagedExport {
   constructor(
     readonly scope = credentialScope(),
     readonly jobId: string | null = null,
+    readonly storageKind: "exports" | "responses" = "exports",
   ) {}
   async append(section: string, items: unknown[]) {
     checkCancelled();
@@ -37,7 +38,7 @@ export class PagedExport {
         .join("");
       if (Buffer.byteLength(text) > 8 * 1024 * 1024) throw new Error("STORAGE_LIMIT: Export page too large.");
       const name = `${section}-${info.files.length}.ndjson`;
-      await atomicWrite(storePath(this.scope, "exports", this.id, name), text);
+      await atomicWrite(storePath(this.scope, this.storageKind, this.id, name), text);
       hash.update(text);
       this.totalHash.update(section + "\n" + text);
       info.files.push(name);
@@ -63,7 +64,7 @@ export class PagedExport {
       metadata,
       sections: this.sections,
     };
-    await atomicWrite(storePath(this.scope, "exports", this.id, "manifest.json"), JSON.stringify(manifest));
+    await atomicWrite(storePath(this.scope, this.storageKind, this.id, "manifest.json"), JSON.stringify(manifest));
     return {
       uri: `moysklad-export://${this.id}`,
       mimeType: "application/json",
@@ -79,25 +80,28 @@ export class PagedExport {
     };
   }
 }
-export async function exportManifest(uri: string) {
+export async function exportManifest(uri: string, storageKind: "exports" | "responses" = "exports") {
   const id = /^moysklad-export:\/\/([a-f0-9-]{36})$/.exec(uri)?.[1];
   if (!id) throw new Error("EXPIRED_EXPORT: Export unavailable.");
-  const manifest = await readJson<ExportManifest>(storePath(credentialScope(), "exports", id, "manifest.json")).catch(
+  const manifest = await readJson<ExportManifest>(storePath(credentialScope(), storageKind, id, "manifest.json")).catch(
     () => null,
   );
   if (!manifest || Date.parse(manifest.expires_at) <= Date.now())
     throw new Error("EXPIRED_EXPORT: Export unavailable; regenerate report.");
   return manifest;
 }
-export async function readPagedExport(p: {
-  uri: string;
-  section: string;
-  offset: number;
-  limit: number;
-  cursor?: string;
-  max_bytes?: number;
-}) {
-  const manifest = await exportManifest(p.uri);
+export async function readPagedExport(
+  p: {
+    uri: string;
+    section: string;
+    offset: number;
+    limit: number;
+    cursor?: string;
+    max_bytes?: number;
+  },
+  storageKind: "exports" | "responses" = "exports",
+) {
+  const manifest = await exportManifest(p.uri, storageKind);
   const section = manifest.sections[p.section];
   if (!section) throw new Error("EXPORT_SECTION: Requested section is unavailable.");
   const offset = p.cursor === undefined ? p.offset : Number(p.cursor);
@@ -114,7 +118,7 @@ export async function readPagedExport(p: {
       at += count;
       continue;
     }
-    for await (const row of readLines(storePath(credentialScope(), "exports", manifest.id, file))) {
+    for await (const row of readLines(storePath(credentialScope(), storageKind, manifest.id, file))) {
       if (at++ < offset) continue;
       const size = Buffer.byteLength(JSON.stringify(row));
       if (items.length >= p.limit || bytes + size > max) {

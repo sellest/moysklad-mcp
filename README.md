@@ -48,7 +48,7 @@
 ## Cloud deployment and OAuth
 
 The sibling cloud stack's [README](../README.md) documents Docker/Pocket ID/HTTPS
-operation. Its HTTP endpoint requires employee OAuth and exposes the 25-tool
+operation. Its HTTP endpoint requires employee OAuth and exposes the 27-tool
 `analytics` profile. Node.js 22.22.1+ is required by this checkout's updated dependencies.
 
 Set `MCP_AUTH_MODE=oauth`, `MOYSKLAD_TOOL_PROFILE=analytics`, `MCP_AUTH_ISSUER`,
@@ -63,7 +63,7 @@ from files in the cloud Compose stack. `MCP_AUTH_MODE=none` remains the standalo
 local/stdio default; it does not protect a public HTTP endpoint.
 
 
-Текущая версия содержит **74 инструмента** в профиле `full` и **25 инструментов чтения и подготовки обращения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
+Текущая версия содержит **75 инструментов** в профиле `full` и **27 инструментов чтения, статуса заданий и подготовки обращения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
 
 Доработки 3.3.0 запускаются **из собранного исходного кода этого репозитория**. Пакет `@theyahia/moysklad-mcp` и npm-значок ниже относятся к исходному проекту: команда `npx @theyahia/moysklad-mcp` не устанавливает наши локальные изменения. До отправки коммита на GitHub удалённая ветка также не содержит локальные изменения.
 
@@ -101,7 +101,7 @@ ChatGPT подключается к серверу по Streamable HTTP. Для 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 ```
 
-Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 23 инструмента чтения, включая `get_stock`, `get_stock_by_store` и `get_stock_current`; `list_stores` входит только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
+Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 27 инструментов для отчётной сессии, включая `get_stock`, `get_stock_by_store` и `get_stock_current`; `list_stores` входит только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
 
 Скрипт установит зависимости при первом запуске, соберёт сервер и запросит токен скрыто (или использует уже заданный `MOYSKLAD_TOKEN`). Токен не сохраняется в файл; `token.txt` скрипт запуска не читает. После завершения скрипт восстанавливает прежние значения `MOYSKLAD_TOKEN` и `HTTP_PORT`. Остановите сервер через `Ctrl+C`. Другой порт: добавьте `-Port 3001`; переустановка зависимостей: `-Reinstall`. Параметр `ExecutionPolicy Bypass` действует только для запускаемого процесса и не меняет системную политику.
 
@@ -420,7 +420,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 Документы/позиции кешируются отдельно: период + нормализованные организации + учётные данные, без категории/размера/цены в ключе. Рейтинг, категории, размеры, цены и сверка разделяют один снимок. Ответ содержит `snapshot.id`, `captured_at` (начало загрузки), `loaded_at`, `expires_at`, `reused`. Срок — 5 минут после завершения загрузки, максимум 8 снимков в памяти; совпадающие параллельные запросы разделяют одну загрузку. В снимке заморожено и обогащение каталога. `refresh_source: true` перечитывает документы/позиции. `refresh_catalog: true` обновляет карточки действующего снимка без скачивания документов и без продления их срока. Для полного обновления передайте оба флага. Смена учётных данных/организаций/периода или истечение срока исключает переиспользование. Для услуг/комплектов карточки дополнительно не читаются; остальные товары нужны для классификации и совместной сверки.
 
-После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.4.4**, `tool_profile` и `tools`: **72** для `full`, **23** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
+После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.6.3**, `tool_profile` и `tools`: **75** для `full`, **27** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
 
 Проверка исходников: `npm run build`, `npm test`, `npm run lint`. Для интеграционных проверок используйте собственные приватные тестовые данные.
 
@@ -446,7 +446,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 Категории принимают тот же период, организации, классификацию и `quantity_basis`, без top_n/offset и **без ограничений размера или цены**. По умолчанию три строки. Процент = единицы категории / единицы запрошенных явно классифицированных категорий × 100; знаменатель/основание и исключение unresolved/excluded указаны в `denominator`. Для net используются net-единицы; отрицательные значения сохраняются, при нулевом знаменателе процент `null`. Округление десятичное HALF_UP до двух знаков; сумма округлённых долей может отличаться от 100.00.
 
 
-Схемы всех 67 инструментов тоже занимают контекст. Для отчётных задач доступен явный профиль **15 инструментов**:
+Схемы всех 75 инструментов тоже занимают контекст. Для отчётных задач доступен явный профиль **27 инструментов**:
 
 ```powershell
 $env:MOYSKLAD_TOOL_PROFILE = 'analytics'
@@ -455,7 +455,10 @@ $env:MOYSKLAD_TOOL_PROFILE = 'analytics'
 
 Полный профиль — `MOYSKLAD_TOOL_PROFILE=full` или отсутствие переменной. Analytics публикует только:
 
-- `search_products`, `search_variants`, `search_assortment`;
+- `search_products`, `search_variants`, `search_assortment`, `get_product`, `get_products_by_ids`;
+- `get_stock`, `get_stock_by_store`, `get_stock_current`, `get_stock_at_date`;
+- `start_report`, `get_report_job`, `list_report_jobs`, `cancel_report_job`;
+- `query_analytics`, `contact_developer`;
 - `get_document`, `get_documents`, `list_organizations`;
 - `get_sales_report`, `get_profit_report`;
 - `get_sales_by_size`, `get_sales_by_price`, `get_sales_by_category`, `get_sales_ranking_by_article`;
@@ -509,7 +512,7 @@ node dist/index.js --http 3000
 | `MOYSKLAD_LOGIN` / `MOYSKLAD_PASSWORD` | —            | Basic-авторизация                                                 |
 | `MOYSKLAD_RATE_BUCKET`                 | `8`          | Бюджет веса за 3 секунды; равномерный запуск запросов             |
 | `MOYSKLAD_MAX_CONCURRENT`              | `2`          | Параллельные запросы одного процесса, максимум 5                  |
-| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (72 инструмента) или `analytics` (23 инструмента чтения) |
+| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (75 инструментов) или `analytics` (27 инструментов для отчётной сессии) |
 | `MOYSKLAD_DIAGNOSTICS`                 | —            | `1`: все безопасные события в stderr; события 429 пишутся всегда  |
 | `MOYSKLAD_HTTP_CORS_ORIGIN`            | —            | Разрешённый CORS-origin для HTTP-транспорта                       |
 | `HTTP_PORT`                            | —            | Запустить транспорт Streamable HTTP на этом порту                 |
@@ -611,7 +614,7 @@ references. Missing warehouse balances remain null with `stock_status=not_return
 Long reads support durable `start_report` / `get_report_job` / cancellation;
 `output=file` exports the requested page, not the entire catalog.
 
-`get_stock_at_date` is available in both profiles (25 analytics / 74 full).
+`get_stock_at_date` is available in both profiles (27 analytics / 75 full).
 Example: `{"date":"2026-09-14","by_store":true,"group_by":"variant","limit":25}`.
 It requests the authoritative stock report with `filter=moment=2026-09-14 23:59:59.999`.
 Use `by_store=false` (default) for combined balances, or true for warehouse rows;
@@ -631,3 +634,45 @@ unavailable cards remain identifiable and unknown fields stay null. This is a
 recalculation from currently accessible documents, not a frozen historic database:
 backdated edits, API recalculation lag, archive/visibility rules and changes between
 pages can affect results. No technical-modification exclusions are inferred.
+
+
+## Inline results and explicit exports (3.6.1)
+
+No tool automatically replaces a large data response with an export. `output="file"` explicitly requests a downloadable MCP resource; background execution alone never selects file output. Existing explicit exports remain readable.
+
+Large responses use bounded inline pages (at most 100 rows and below the 100 KiB response budget). The response keeps its selected collection field, identifies the section in `pagination`, and provides `next_cursor`. Repeat the **same tool with the original arguments** plus `response_cursor=next_cursor`; this reads the immutable server snapshot without querying MoySklad or restarting a job. `sections` lists other available collections and their starting cursors, including audit detail/dictionary for streaming reports. Read pages sequentially. A paged dictionary is a list of `{key,value}` records.
+
+`pagination.total` describes the selected collection in the captured response; `pagination.source_total` and `source_next_offset` describe upstream document pagination. After finishing the response cursor, continue with the source offset only if more source documents are actually needed. A final cursor page does not imply the entire source dataset was read. Existing aggregate totals describe the captured source, not just the displayed rows. For analytical questions use `query_analytics` instead of collecting raw documents.
+
+Inline snapshots are private server storage, not exported files or download links. They share the storage quota and snapshot retention (24 hours by default), survive restarts, and are scoped to the company credential and original tool. Expired/unavailable cursors require repeating the original request without `response_cursor`. Metadata or a single row that cannot fit produces an explicit error: request narrower fields or a smaller positions page, or choose `output="file"` explicitly if a file is desired. Nothing is silently truncated.
+
+## Product UUID lookup (3.6.2)
+
+The analytics profile now exposes get_product with required id and optional raw.
+It returns the actual MoySklad product ID, article, name and archive flag.
+Through the gateway its name is moysklad_get_product; existing group restrictions apply.
+This is one product per call. Website UUIDs can be passed only after verifying that
+they are MoySklad product IDs. Missing products return an error; do not infer an article
+from the product name. Batch lookup is not implemented by this change.
+
+## Batch product UUID lookup (3.6.3)
+
+`get_products_by_ids` accepts `ids` (1–1000 product UUIDs), `offset` (default 0),
+and `limit` (default/max 100). Response `products` contains one result per unique
+UUID in the page: `status: found` with id, exact article/name, code, archived,
+external_code, path_name, updated and prices in rubles; or `status: not_found`
+with null article/name/archive flag. Not found can mean absent or inaccessible;
+it does not establish deletion. Variant IDs are not resolved by this product-only
+lookup. Case-insensitive duplicate UUIDs are removed before pagination, keeping
+first occurrence order; article strings and duplicate articles are preserved.
+
+Repeat the SAME ids with `next_offset` until it is null. `total` counts unique
+input IDs; `returned`, `found` and `not_found` describe only the current page.
+`complete` means input pagination ended, not that every product was found.
+There is one scheduled API read per nonempty page using multiple id filters and
+including active/archived products. API errors fail the page; they are never
+converted into not_found. No full catalog download or automatic file export.
+Existing bounded inline response cursors still apply if the byte budget is
+exceeded. The gateway tool is `moysklad_get_products_by_ids`.
+
+Example: `{"ids":["00000000-0000-4000-8000-000000000001"],"limit":100,"offset":0}`.

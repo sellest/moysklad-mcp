@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { reportContext } from "./report-context.js";
 const messages: Record<string, string> = {
+  EXPIRED_RESPONSE:
+    "Inline response snapshot expired or is unavailable. Repeat the original request without response_cursor.",
+  INLINE_RESPONSE_TOO_LARGE:
+    "A single row or metadata exceeds the inline budget. Request narrower fields, smaller position pages, or explicitly output=file if a file is needed.",
   ANALYTICS_POLICY_UNAVAILABLE:
     "Confirmed cancellation status reference is missing or outdated; ask the operator to configure MCP_ANALYTICS_ORDER_POLICY_FILE. Use query_analytics operation=describe for source statuses.",
   CONTACT_NOT_CONFIGURED:
