@@ -123,20 +123,24 @@ describe("stateless HTTP transport", () => {
       complete: true,
     });
   });
-  it("publishes the explicit 25-tool analytics profile and restores all 74 tools", async () => {
+  it("publishes the explicit 27-tool analytics profile and restores all 75 tools", async () => {
     vi.stubEnv("MOYSKLAD_TOOL_PROFILE", "analytics");
     try {
       const tools = (await (await post({ jsonrpc: "2.0", id: 8, method: "tools/list" })).json()).result.tools;
-      expect(tools).toHaveLength(25);
+      expect(tools).toHaveLength(27);
+      const batch = tools.find((t: { name: string }) => t.name === "get_products_by_ids");
+      expect(batch.inputSchema.properties.ids.maxItems).toBe(1000);
+      expect(batch.inputSchema.properties.limit.maximum).toBe(100);
+      expect(tools.find((t: { name: string }) => t.name === "get_product")?.inputSchema.required).toContain("id");
       expect(tools.some((t: { name: string }) => t.name === "query_analytics")).toBe(true);
       expect(tools.some((t: { name: string }) => t.name === "contact_developer")).toBe(true);
       expect(tools.some((t: { name: string }) => t.name === "create_demand")).toBe(false);
       const health = await (await fetch(`${baseUrl}/health`)).json();
-      expect(health).toMatchObject({ tools: 25, version: "3.6.0", tool_profile: "analytics" });
+      expect(health).toMatchObject({ tools: 27, version: "3.6.3", tool_profile: "analytics" });
     } finally {
       vi.unstubAllEnvs();
     }
-    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(74);
+    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(75);
   });
   it("returns a concise unavailable-resource error after expiration or lost registry", async () => {
     const response = await post({

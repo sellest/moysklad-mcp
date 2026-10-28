@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
+import { inlineTool } from "./inline-response.js";
 import { z } from "zod";
 import {
   atomicWrite,
@@ -107,7 +108,7 @@ export class ReportJobs {
       if (Date.now() - Date.parse(job.accepted_at) > 7 * 86400000) await removeStored(this.path(scope, job.job_id));
     }
     // Expired exports and incomplete orphan captures are reclaimed after retention.
-    for (const kind of ["exports", "captures", "catalog"]) {
+    for (const kind of ["exports", "responses", "captures", "catalog"]) {
       for (const id of await readdir(storePath(scope, kind)).catch(() => [])) {
         if (!/^[a-f0-9-]{36}$/.test(id)) continue;
         if (
@@ -154,7 +155,7 @@ export class ReportJobs {
       normalized.refresh_catalog = params.refresh_catalog === true;
       if (toolName === "query_analytics") normalized.configuration_revision = await analyticsConfigurationRevision();
       const fingerprint = createHash("sha256")
-        .update(JSON.stringify(stable({ schema: 2, scope, tool: toolName, params: normalized })))
+        .update(JSON.stringify(stable({ schema: 3, scope, tool: toolName, params: normalized })))
         .digest("hex");
       const records = await this.records(scope);
       const previous = records
@@ -342,10 +343,7 @@ export class ReportJobs {
           async () => {
             try {
               const tool = this.tools.get(job.tool)!;
-              const text = await tool.handler({
-                ...job.params,
-                output: job.tool === "query_analytics" ? job.params.output : "file",
-              });
+              const text = await inlineTool.run(job.tool, () => tool.handler(job.params));
               if (controller.signal.aborted) throw new Error("JOB_CANCELLED: Cancelled.");
               if (Buffer.byteLength(text) > 102400)
                 throw new Error("STORAGE_LIMIT: Job summary exceeds inline budget.");

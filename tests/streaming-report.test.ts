@@ -8,6 +8,7 @@ import { ReportJobs } from "../src/report-jobs.js";
 import { tools as analyticsTools } from "../src/tools/analytics.js";
 import { tools as rankingTools } from "../src/tools/rankings.js";
 import { clearCatalogCache, clearSourceCache } from "../src/analytics-data.js";
+import { readInlineResponse } from "../src/inline-response.js";
 import { readPagedExport } from "../src/paged-export.js";
 let directory: string;
 const get = vi.mocked(moyskladGet);
@@ -76,6 +77,20 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 describe("bounded report pipeline", () => {
+  it("retains explicit file exports for streaming reports", async () => {
+    installPages();
+    const jobs = new ReportJobs();
+    jobs.register(analyticsTools);
+    const started = await jobs.start("get_sales_by_size", { ...params, output: "file" });
+    const job = await wait(jobs, started.job_id);
+    expect(job.state).toBe("succeeded");
+    const result = job.result as any;
+    expect(result.export.uri).toMatch(/^moysklad-export:/);
+    const page = JSON.parse(
+      await readPagedExport({ uri: result.export.uri, section: "detail", offset: 399, limit: 100 }),
+    );
+    expect(page.items).toHaveLength(6);
+  });
   it("captures all pages, aggregates exact quantities, and reuses the snapshot for prices", async () => {
     installPages();
     const jobs = new ReportJobs();
@@ -88,15 +103,14 @@ describe("bounded report pipeline", () => {
     expect(result.source.positions).toBe(405);
     expect(result.source.completeness.complete).toBe(true);
     expect(result.snapshot.reused).toBe(false);
+    expect(result.export).toBeUndefined();
     const page = JSON.parse(
-      await readPagedExport({ uri: result.export.uri, section: "detail", offset: 399, limit: 100 }),
+      await readInlineResponse(result.sections.detail.cursor.replace(/:0$/, ":399"), "get_sales_by_size"),
     );
-    expect(page.items).toHaveLength(6);
+    expect(page.detail).toHaveLength(6);
     expect(page.next_cursor).toBeNull();
-    const dictionary = JSON.parse(
-      await readPagedExport({ uri: result.export.uri, section: "dictionary", offset: 0, limit: 100 }),
-    );
-    expect(dictionary.total).toBe(1);
+    const dictionary = JSON.parse(await readInlineResponse(result.sections.dictionary.cursor, "get_sales_by_size"));
+    expect(dictionary.dictionary).toHaveLength(1);
     const fetched = get.mock.calls.length;
     clearCatalogCache();
     const price = await jobs.start("get_sales_by_price", {
@@ -150,10 +164,8 @@ describe("bounded report pipeline", () => {
     expect(job.state).toBe("succeeded");
     const result = job.result as any;
     expect(result.excluded.service).toMatchObject({ sold: 507, returned: 13, net: 494 });
-    const dictionary = JSON.parse(
-      await readPagedExport({ uri: result.export.uri, section: "dictionary", offset: 0, limit: 100 }),
-    );
-    expect(dictionary.items[0].value).toMatchObject({ id: "delivery", type: "service", name: "Delivery fixture" });
+    const dictionary = JSON.parse(await readInlineResponse(result.sections.dictionary.cursor, "get_sales_by_size"));
+    expect(dictionary.dictionary[0].value).toMatchObject({ id: "delivery", type: "service", name: "Delivery fixture" });
     expect(get.mock.calls).toHaveLength(4);
   });
   it("rejects duplicate documents instead of declaring unique completeness", async () => {

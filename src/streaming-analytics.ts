@@ -3,8 +3,8 @@ import { aggregateSizes, aggregatePrices, type sizeReportSchema, type priceRepor
 import type { LoadedSource } from "./analytics-data.js";
 import type { z } from "zod";
 import { Exact } from "./precision.js";
-import { PagedExport } from "./paged-export.js";
-import { reportContext, reportProgress } from "./report-context.js";
+import { reportProgress } from "./report-context.js";
+import { finishInline, responseWriter } from "./inline-response.js";
 type Params = z.infer<typeof sizeReportSchema> | z.infer<typeof priceReportSchema>;
 function mergeCounts(target: any, value: any) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -25,7 +25,7 @@ export async function renderStreamingAnalytics(params: Params, kind: "sizes" | "
       : aggregatePrices(lines, params as z.infer<typeof priceReportSchema>);
   const result: any = aggregate([]);
   delete result.detail;
-  const writer = new PagedExport(undefined, reportContext.getStore()?.jobId ?? null);
+  const writer = await responseWriter(params.output === "file");
   const dictionaryKeys = new Set<string>();
   let batch: any[] = [];
   let anonymous = 0;
@@ -144,6 +144,7 @@ export async function renderStreamingAnalytics(params: Params, kind: "sizes" | "
   await writer.append("dictionary", []);
   await writer.append("rows", summary.rows);
   const { rows: _rows, ...metadata } = summary;
+  if (params.output !== "file") return finishInline(writer, metadata);
   return JSON.stringify({
     ...summary,
     export: await writer.finish(metadata, source.snapshot?.id, source.snapshot?.captured_at),

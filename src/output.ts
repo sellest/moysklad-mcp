@@ -6,8 +6,10 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { paginateInline, responseCursorDescription } from "./inline-response.js";
 
 export const outputSchema = {
+  response_cursor: z.string().max(256).optional().describe(responseCursorDescription),
   detail: z
     .enum(["summary", "rows", "raw"])
     .optional()
@@ -15,7 +17,9 @@ export const outputSchema = {
   output: z
     .enum(["inline", "file"])
     .optional()
-    .describe("file returns summary and a readable MCP export URI, never a server path"),
+    .describe(
+      "Default inline: bounded data pages, never automatic files. file explicitly requests a readable MCP export URI.",
+    ),
   fields: z
     .enum(["quantity", "analysis", "full"])
     .optional()
@@ -24,6 +28,7 @@ export const outputSchema = {
     ),
 };
 export interface OutputOptions {
+  response_cursor?: string;
   detail?: "summary" | "rows" | "raw";
   output?: "inline" | "file";
   fields?: "quantity" | "analysis" | "full";
@@ -104,7 +109,7 @@ export async function outputResult(value: unknown, summary: unknown, options: Ou
   if (options.output === "file") return JSON.stringify({ ...(summary as object), export: await createExport(value) });
   const text = JSON.stringify(value);
   if (Buffer.byteLength(text) > 102400)
-    return JSON.stringify({ ...(summary as object), output_mode: "automatic_file", export: await createExport(value) });
+    return paginateInline(value as Record<string, any>, summary as Record<string, any>);
   return text;
 }
 
