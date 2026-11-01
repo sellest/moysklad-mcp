@@ -1,0 +1,97 @@
+name: Publish release images
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: images-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    # Never publish PR/untrusted workflow_run sources. A dispatch only builds dev.
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [moysklad]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: cd source && npm ci && npm run lint && npm run typecheck && npm run build && npm run coverage
+      - id: meta
+        name: Read source identity
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          echo "sha=$(git -C source rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./source/package.json').version")" >> "$GITHUB_OUTPUT"
+          if [ "$COMPONENT" = metrica ]; then suffix=mcp-metrica; else suffix=moysklad-mcp; fi
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$suffix" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Reuse an image already built for this commit
+        id: existing
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          SOURCE_SHA: ${{ steps.meta.outputs.sha }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:sha-$SOURCE_SHA" >/dev/null 2>&1; then
+            echo 'found=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push exactly once per source revision
+        if: steps.existing.outputs.found != 'true'
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: ${{ matrix.component == 'metrica' && '.' || './source' }}
+          file: ${{ matrix.component == 'metrica' && 'source/deploy/metrica/Dockerfile' || 'source/Dockerfile' }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.image }}:sha-${{ steps.meta.outputs.sha }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            VCS_REF=${{ steps.meta.outputs.sha }}
+            BUILD_DATE=${{ steps.meta.outputs.created }}
+      - name: Record immutable registry identity
+        env:
+          COMPONENT: ${{ matrix.component }}
+          IMAGE: ${{ steps.meta.outputs.image }}
+          SOURCE_SHA: ${{ steps.meta.outputs.sha }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          ref="$IMAGE:sha-$SOURCE_SHA"
+          digest=$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}')
+          export IMAGE="$IMAGE@$digest"
+          docker pull "$IMAGE"
+          mkdir -p release
+          docker image inspect "$IMAGE" | python -c '
+          import json,os,sys
+          d=json.load(sys.stdin)[0]; l=d["Config"]["Labels"]
+          assert l["org.opencontainers.image.revision"]==os.environ["SOURCE_SHA"]
+          assert l["org.opencontainers.image.version"]==os.environ["VERSION"]
+          assert d["Os"]=="linux" and d["Architecture"]=="amd64"
+          json.dump({"component":os.environ["COMPONENT"],"image":os.environ["IMAGE"],"revision":os.environ["SOURCE_SHA"],"version":os.environ["VERSION"],"source_repo":os.environ["GITHUB_REPOSITORY"],"build_run_id":int(os.environ["GITHUB_RUN_ID"])},open("release/release.json","w"),indent=2)'
+          cat release/release.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.component }}
+          path: release/release.json
+          retention-days: 90

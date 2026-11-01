@@ -676,3 +676,12 @@ Existing bounded inline response cursors still apply if the byte budget is
 exceeded. The gateway tool is `moysklad_get_products_by_ids`.
 
 Example: `{"ids":["00000000-0000-4000-8000-000000000001"],"limit":100,"offset":0}`.
+
+## Поставка образов через CI
+
+Изменения проходят PR и CI. Workflow **Publish release images** публикует готовые
+образы в GHCR с версией, Git SHA и immutable digest; повтор запуска использует уже
+опубликованный образ того же commit. Сборка на VPS не требуется. Merge не запускает
+production deployment: версии закрепляются отдельным PR в
+[moysklad-cloud](https://github.com/sellest/moysklad-cloud), затем явно запускается
+**Deploy approved release**. См. [порядок выпуска](https://github.com/sellest/moysklad-cloud/blob/main/delivery/README.md).
