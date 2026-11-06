@@ -32,6 +32,7 @@ import { tools as reconciliationTools } from "./tools/reconciliation.js";
 import { tools as rankingTools } from "./tools/rankings.js";
 import { tools as contactDeveloperTools } from "./tools/contact-developer.js";
 import { tools as queryAnalyticsTools } from "./tools/query-analytics.js";
+import { tools as customerProfitTools } from "./tools/customer-profit.js";
 import { requestScheduler } from "./client.js";
 import { sourceCacheDiagnostics } from "./analytics-data.js";
 import { z } from "zod";
@@ -60,6 +61,7 @@ const allTools: ToolDef[] = [
   ...rankingTools,
   ...contactDeveloperTools,
   ...queryAnalyticsTools,
+  ...customerProfitTools,
   ...jobTools,
   {
     name: "get_mcp_diagnostics",
@@ -136,7 +138,7 @@ function createMcpServer() {
     { name: "moysklad-mcp", version: VERSION },
     {
       instructions:
-        "For analytical questions across customer orders, use query_analytics instead of downloading get_documents pages or running parallel page requests. For delivery city/region rankings use order.delivery.city/order.delivery.region with orders_count and orders_total_rub (each whole order sum once, including delivery). Do not substitute ordered_revenue or download raw orders. A missing region stays absent/null; never infer it from city/postal code/free text. Read missing/excluded counters and disclose default status policy. If aggregate next_offset is non-null, read the remaining aggregate page using the same query; this reuses the source snapshot. Use operation=describe to discover actual category values/status IDs; never invent category aliases or infer sleeves from names. Default order selection is posted except confirmed cancelled statuses; disclose it, and apply explicit user status selection when provided. A query may return job_id; poll get_report_job sequentially at intervals of at least 3 seconds. Partial/unresolved results cannot establish a definitive winner. Files are only for explicit export requests. When the user asks to contact the developer, or a task remains blocked after reasonable recovery, use contact_developer to prepare a concise problem report. Send the returned email through the user's connected Gmail only if a send tool is available, following that connector's approval rules. contact_developer itself never sends mail. If sending is unavailable or fails, provide the draft and explicitly state it was not sent. Never claim delivery without successful Gmail confirmation, invent reproduction steps, or include credentials, full conversation history or customer data dumps.",
+        "For customer profitability or top buyers use get_customer_profit_report; it reads every native profitability report page and separates configured marketplace UUIDs. Report totals.all separately from totals.ranking; never replace realized customer profitability with customer-order amounts. If marketplace policy is unavailable, request operator configuration, never guess identities. For analytical questions across customer orders, use query_analytics instead of downloading get_documents pages or running parallel page requests. For delivery city/region rankings use order.delivery.city/order.delivery.region with orders_count and orders_total_rub (each whole order sum once, including delivery). Do not substitute ordered_revenue or download raw orders. A missing region stays absent/null; never infer it from city/postal code/free text. Read missing/excluded counters and disclose default status policy. If aggregate next_offset is non-null, read the remaining aggregate page using the same query; this reuses the source snapshot. Use operation=describe to discover actual category values/status IDs; never invent category aliases or infer sleeves from names. Default order selection is posted except confirmed cancelled statuses; disclose it, and apply explicit user status selection when provided. A query may return job_id; poll get_report_job sequentially at intervals of at least 3 seconds. Partial/unresolved results cannot establish a definitive winner. Files are only for explicit export requests. When the user asks to contact the developer, or a task remains blocked after reasonable recovery, use contact_developer to prepare a concise problem report. Send the returned email through the user's connected Gmail only if a send tool is available, following that connector's approval rules. contact_developer itself never sends mail. If sending is unavailable or fails, provide the draft and explicitly state it was not sent. Never claim delivery without successful Gmail confirmation, invent reproduction steps, or include credentials, full conversation history or customer data dumps.",
     },
   );
   instance.resource(
@@ -212,6 +214,7 @@ const analyticsNames = new Set([
   "get_documents",
   "get_sales_report",
   "get_profit_report",
+  "get_customer_profit_report",
   "get_sales_by_size",
   "get_sales_by_price",
   "get_sales_by_category",

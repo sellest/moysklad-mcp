@@ -17,6 +17,7 @@ import { observeOperation } from "./metrics.js";
 import type { ToolDef } from "./types.js";
 import { analyticsConfigurationRevision } from "./analytics-query-policy.js";
 import { normalizeAnalyticsQuery } from "./analytics-query-schema.js";
+import { customerProfitMarketplaceMapping } from "./tools/customer-profit.js";
 export type JobState = "queued" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
 export interface ReportJob {
   job_id: string;
@@ -49,6 +50,7 @@ const supported = new Set([
   "get_sales_ranking_by_article",
   "get_sales_report",
   "get_profit_report",
+  "get_customer_profit_report",
   "get_documents",
   "reconcile_sales",
 ]);
@@ -145,6 +147,8 @@ export class ReportJobs {
       if (!parsed.success) throw new Error("INVALID_ARGUMENT: Report parameters do not match tool schema.");
       const params: Record<string, any> =
         toolName === "query_analytics" ? normalizeAnalyticsQuery(parsed.data) : parsed.data;
+      if (toolName === "get_customer_profit_report")
+        params.marketplace_counterparty_ids = await customerProfitMarketplaceMapping(params as any);
       if (Buffer.byteLength(JSON.stringify(params)) > 131072)
         throw new Error("INVALID_ARGUMENT: Parameters too large.");
       if (params.organization_hrefs) params.organization_hrefs = [...new Set(params.organization_hrefs)].sort();
@@ -167,7 +171,8 @@ export class ReportJobs {
               (!params.refresh_source &&
                 !params.refresh_catalog &&
                 j.state === "succeeded" &&
-                Date.now() - Date.parse(j.finished_at!) < (toolName === "query_analytics" ? 300000 : 86400000))),
+                Date.now() - Date.parse(j.finished_at!) <
+                  (["query_analytics", "get_customer_profit_report"].includes(toolName) ? 300000 : 86400000))),
         );
       if (previous) return this.public(previous);
       if (records.length >= 256) throw new Error("STORAGE_LIMIT: Job history capacity reached.");
@@ -302,6 +307,13 @@ export class ReportJobs {
               );
               for (const [key, n] of Object.entries(delta ?? {}))
                 job.progress[key] = key.startsWith("expected_") ? n : (job.progress[key] ?? 0) + n;
+              if (stage === "aggregate_customer_profit" && job.progress.expected_counterparties > 0)
+                job.percent = Math.min(
+                  99,
+                  Math.floor(
+                    (100 * (job.progress.processed_counterparties ?? 0)) / job.progress.expected_counterparties,
+                  ),
+                );
               if (job.progress.expected_positions > 0)
                 job.percent = Math.max(
                   job.percent ?? 0,
