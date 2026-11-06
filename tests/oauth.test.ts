@@ -110,7 +110,7 @@ describe("OAuth resource server", () => {
     const res = await request(bearer);
     expect(res.status).toBe(200);
     const tools = (await res.json()).result.tools;
-    expect(tools).toHaveLength(27);
+    expect(tools).toHaveLength(28);
     expect(tools.find((t: { name: string }) => t.name === "get_products_by_ids")).toBeDefined();
     expect(tools.find((t: { name: string }) => t.name === "contact_developer").annotations.readOnlyHint).toBe(true);
     for (const name of ["get_stock", "get_stock_by_store", "get_stock_current", "get_stock_at_date"])

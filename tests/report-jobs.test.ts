@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -10,6 +10,7 @@ import { atomicWrite, credentialScope, storePath } from "../src/report-store.js"
 import { PagedExport, readPagedExport } from "../src/paged-export.js";
 import { wrap } from "../src/index.js";
 import { RequestScheduler } from "../src/scheduler.js";
+import { customerProfitSchema } from "../src/tools/customer-profit.js";
 let directory: string;
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "moysklad-jobs-test-"));
@@ -44,6 +45,37 @@ async function settled(jobs: ReportJobs, id: string) {
   throw new Error("Fixture job did not settle");
 }
 describe("durable report lifecycle", () => {
+  it("freezes customer-profit marketplace IDs at enqueue and invalidates cached jobs after policy changes", async () => {
+    const path = join(directory, "profit-policy.json");
+    vi.stubEnv("MCP_PROFIT_MARKETPLACES_FILE", path);
+    const firstId = "00000000-0000-4000-8000-000000000090";
+    const secondId = "00000000-0000-4000-8000-000000000091";
+    await writeFile(path, JSON.stringify({ wildberries: [firstId], ozon: [] }));
+    const inputs: any[] = [];
+    const jobs = new ReportJobs();
+    jobs.register([
+      {
+        name: "get_customer_profit_report",
+        description: "fixture",
+        schema: customerProfitSchema,
+        handler: async (params) => {
+          inputs.push(params);
+          return JSON.stringify({ ok: true });
+        },
+      },
+    ]);
+    const period = { moment_from: "2026-08-01", moment_to: "2026-11-01" };
+    const first = await jobs.start("get_customer_profit_report", period);
+    await settled(jobs, first.job_id);
+    expect(inputs[0].marketplace_counterparty_ids).toEqual({ wildberries: [firstId], ozon: [] });
+    expect((await jobs.start("get_customer_profit_report", period)).job_id).toBe(first.job_id);
+    await writeFile(path, JSON.stringify({ wildberries: [firstId], ozon: [secondId] }));
+    const next = await jobs.start("get_customer_profit_report", period);
+    expect(next.job_id).not.toBe(first.job_id);
+    await settled(jobs, next.job_id);
+    expect(inputs[1].marketplace_counterparty_ids.ozon).toEqual([secondId]);
+    expect(managedReportNames.has("get_customer_profit_report")).toBe(true);
+  });
   it("routes ordinary document reads outside the long report worker", () => {
     expect(managedReportNames.has("get_documents")).toBe(false);
     expect(managedReportNames.has("get_sales_by_size")).toBe(true);

@@ -82,6 +82,22 @@ describe("stateless HTTP transport", () => {
     }
   });
 
+  it("publishes the customer profit contract in the analytics profile", async () => {
+    vi.stubEnv("MOYSKLAD_TOOL_PROFILE", "analytics");
+    try {
+      const response = await post({ jsonrpc: "2.0", id: 21, method: "tools/list" });
+      const definition = (await response.json()).result.tools.find(
+        (tool: any) => tool.name === "get_customer_profit_report",
+      );
+      expect(definition).toBeDefined();
+      expect(definition.inputSchema.required).toEqual(expect.arrayContaining(["moment_from", "moment_to"]));
+      expect(definition.inputSchema.properties.top_n).toMatchObject({ default: 20, maximum: 100 });
+      expect(definition.inputSchema.properties.separate_marketplaces.default).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("does not poison subsequent requests after an invalid GET", async () => {
     const invalid = await fetch(`${baseUrl}/mcp`);
     expect(invalid.status).toBe(406);
@@ -123,11 +139,11 @@ describe("stateless HTTP transport", () => {
       complete: true,
     });
   });
-  it("publishes the explicit 27-tool analytics profile and restores all 75 tools", async () => {
+  it("publishes the explicit 28-tool analytics profile and restores all 76 tools", async () => {
     vi.stubEnv("MOYSKLAD_TOOL_PROFILE", "analytics");
     try {
       const tools = (await (await post({ jsonrpc: "2.0", id: 8, method: "tools/list" })).json()).result.tools;
-      expect(tools).toHaveLength(27);
+      expect(tools).toHaveLength(28);
       const batch = tools.find((t: { name: string }) => t.name === "get_products_by_ids");
       expect(batch.inputSchema.properties.ids.maxItems).toBe(1000);
       expect(batch.inputSchema.properties.limit.maximum).toBe(100);
@@ -136,11 +152,11 @@ describe("stateless HTTP transport", () => {
       expect(tools.some((t: { name: string }) => t.name === "contact_developer")).toBe(true);
       expect(tools.some((t: { name: string }) => t.name === "create_demand")).toBe(false);
       const health = await (await fetch(`${baseUrl}/health`)).json();
-      expect(health).toMatchObject({ tools: 27, version: "3.6.3", tool_profile: "analytics" });
+      expect(health).toMatchObject({ tools: 28, version: "3.7.0", tool_profile: "analytics" });
     } finally {
       vi.unstubAllEnvs();
     }
-    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(75);
+    expect((await (await post({ jsonrpc: "2.0", id: 9, method: "tools/list" })).json()).result.tools).toHaveLength(76);
   });
   it("returns a concise unavailable-resource error after expiration or lost registry", async () => {
     const response = await post({

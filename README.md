@@ -48,7 +48,7 @@
 ## Cloud deployment and OAuth
 
 The sibling cloud stack's [README](../README.md) documents Docker/Pocket ID/HTTPS
-operation. Its HTTP endpoint requires employee OAuth and exposes the 27-tool
+operation. Its HTTP endpoint requires employee OAuth and exposes the 28-tool
 `analytics` profile. Node.js 22.22.1+ is required by this checkout's updated dependencies.
 
 Set `MCP_AUTH_MODE=oauth`, `MOYSKLAD_TOOL_PROFILE=analytics`, `MCP_AUTH_ISSUER`,
@@ -63,7 +63,7 @@ from files in the cloud Compose stack. `MCP_AUTH_MODE=none` remains the standalo
 local/stdio default; it does not protect a public HTTP endpoint.
 
 
-Текущая версия содержит **75 инструментов** в профиле `full` и **27 инструментов чтения, статуса заданий и подготовки обращения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
+Текущая версия содержит **76 инструментов** в профиле `full` и **28 инструментов чтения, статуса заданий и подготовки обращения** в профиле `analytics`: компактные ответы, отчёты по размерам/ценам/категориям, рейтинг артикулов, сверку с прибыльностью, общий кеш снимков и планировщик запросов.
 
 Доработки 3.3.0 запускаются **из собранного исходного кода этого репозитория**. Пакет `@theyahia/moysklad-mcp` и npm-значок ниже относятся к исходному проекту: команда `npx @theyahia/moysklad-mcp` не устанавливает наши локальные изменения. До отправки коммита на GitHub удалённая ветка также не содержит локальные изменения.
 
@@ -101,7 +101,7 @@ ChatGPT подключается к серверу по Streamable HTTP. Для 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1
 ```
 
-Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 27 инструментов для отчётной сессии, включая `get_stock`, `get_stock_by_store` и `get_stock_current`; `list_stores` входит только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
+Для отчётного пилота перед запуском задайте `$env:MOYSKLAD_TOOL_PROFILE = 'analytics'`. В этом профиле доступны 28 инструментов для отчётной сессии, включая `get_stock`, `get_stock_by_store` и `get_stock_current`; `list_stores` входит только в `full`. Начните отчётный пилот с `list_organizations` или `search_products`.
 
 Скрипт установит зависимости при первом запуске, соберёт сервер и запросит токен скрыто (или использует уже заданный `MOYSKLAD_TOKEN`). Токен не сохраняется в файл; `token.txt` скрипт запуска не читает. После завершения скрипт восстанавливает прежние значения `MOYSKLAD_TOKEN` и `HTTP_PORT`. Остановите сервер через `Ctrl+C`. Другой порт: добавьте `-Port 3001`; переустановка зависимостей: `-Reinstall`. Параметр `ExecutionPolicy Bypass` действует только для запускаемого процесса и не меняет системную политику.
 
@@ -303,6 +303,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 | Инструмент          | Описание                                           |
 | ------------------- | -------------------------------------------------- |
+| `get_customer_profit_report` | Прибыльность по покупателям: полный серверный топ, продажи/возвраты/нетто/прибыль; маркетплейсы отдельно по UUID |
 | `get_profit_report` | Прибыль по товарам (выручка, себестоимость, маржа) |
 | `get_sales_report`  | Продажи по товарам (количество, выручка)           |
 | `get_dashboard`     | Показатели дашборда за день, неделю, месяц         |
@@ -420,7 +421,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 
 Документы/позиции кешируются отдельно: период + нормализованные организации + учётные данные, без категории/размера/цены в ключе. Рейтинг, категории, размеры, цены и сверка разделяют один снимок. Ответ содержит `snapshot.id`, `captured_at` (начало загрузки), `loaded_at`, `expires_at`, `reused`. Срок — 5 минут после завершения загрузки, максимум 8 снимков в памяти; совпадающие параллельные запросы разделяют одну загрузку. В снимке заморожено и обогащение каталога. `refresh_source: true` перечитывает документы/позиции. `refresh_catalog: true` обновляет карточки действующего снимка без скачивания документов и без продления их срока. Для полного обновления передайте оба флага. Смена учётных данных/организаций/периода или истечение срока исключает переиспользование. Для услуг/комплектов карточки дополнительно не читаются; остальные товары нужны для классификации и совместной сверки.
 
-После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.6.3**, `tool_profile` и `tools`: **75** для `full`, **27** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
+После обновления остановите старый процесс и запустите `start-local.ps1` снова. `/health` должен показывать **3.7.0**, `tool_profile` и `tools`: **76** для `full`, **28** для `analytics`. HTTP-тест проверяет свежий `tools/list`, страницы/режимы и оба профиля. В ChatGPT откройте подключение в **Plugins**, нажмите **Refresh**, проверьте новые инструменты/параметры и начните новый чат — это [официальный порядок обновления метаданных](https://developers.openai.com/plugins/deploy/connect-chatgpt). Если в вашем интерфейсе нет Refresh, переподключите сервер с тем же URL/настройками. Проверка свежего серверного списка не подтверждает автоматически работоспособность конкретной клиентской сессии.
 
 Проверка исходников: `npm run build`, `npm test`, `npm run lint`. Для интеграционных проверок используйте собственные приватные тестовые данные.
 
@@ -446,7 +447,7 @@ API МойСклад хранит деньги в **копейках** (1 руб
 Категории принимают тот же период, организации, классификацию и `quantity_basis`, без top_n/offset и **без ограничений размера или цены**. По умолчанию три строки. Процент = единицы категории / единицы запрошенных явно классифицированных категорий × 100; знаменатель/основание и исключение unresolved/excluded указаны в `denominator`. Для net используются net-единицы; отрицательные значения сохраняются, при нулевом знаменателе процент `null`. Округление десятичное HALF_UP до двух знаков; сумма округлённых долей может отличаться от 100.00.
 
 
-Схемы всех 75 инструментов тоже занимают контекст. Для отчётных задач доступен явный профиль **27 инструментов**:
+Схемы всех 76 инструментов тоже занимают контекст. Для отчётных задач доступен явный профиль **28 инструментов**:
 
 ```powershell
 $env:MOYSKLAD_TOOL_PROFILE = 'analytics'
@@ -460,7 +461,7 @@ $env:MOYSKLAD_TOOL_PROFILE = 'analytics'
 - `start_report`, `get_report_job`, `list_report_jobs`, `cancel_report_job`;
 - `query_analytics`, `contact_developer`;
 - `get_document`, `get_documents`, `list_organizations`;
-- `get_sales_report`, `get_profit_report`;
+- `get_sales_report`, `get_profit_report`, `get_customer_profit_report`;
 - `get_sales_by_size`, `get_sales_by_price`, `get_sales_by_category`, `get_sales_ranking_by_article`;
 - `reconcile_sales`, `read_report_export`, `get_mcp_diagnostics`.
 
@@ -512,7 +513,7 @@ node dist/index.js --http 3000
 | `MOYSKLAD_LOGIN` / `MOYSKLAD_PASSWORD` | —            | Basic-авторизация                                                 |
 | `MOYSKLAD_RATE_BUCKET`                 | `8`          | Бюджет веса за 3 секунды; равномерный запуск запросов             |
 | `MOYSKLAD_MAX_CONCURRENT`              | `2`          | Параллельные запросы одного процесса, максимум 5                  |
-| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (75 инструментов) или `analytics` (27 инструментов для отчётной сессии) |
+| `MOYSKLAD_TOOL_PROFILE`                | `full`       | `full` (76 инструментов) или `analytics` (28 инструментов для отчётной сессии) |
 | `MOYSKLAD_DIAGNOSTICS`                 | —            | `1`: все безопасные события в stderr; события 429 пишутся всегда  |
 | `MOYSKLAD_HTTP_CORS_ORIGIN`            | —            | Разрешённый CORS-origin для HTTP-транспорта                       |
 | `HTTP_PORT`                            | —            | Запустить транспорт Streamable HTTP на этом порту                 |
@@ -614,7 +615,7 @@ references. Missing warehouse balances remain null with `stock_status=not_return
 Long reads support durable `start_report` / `get_report_job` / cancellation;
 `output=file` exports the requested page, not the entire catalog.
 
-`get_stock_at_date` is available in both profiles (27 analytics / 75 full).
+`get_stock_at_date` is available in both profiles (28 analytics / 76 full).
 Example: `{"date":"2026-09-14","by_store":true,"group_by":"variant","limit":25}`.
 It requests the authoritative stock report with `filter=moment=2026-09-14 23:59:59.999`.
 Use `by_store=false` (default) for combined balances, or true for warehouse rows;
@@ -685,3 +686,49 @@ Example: `{"ids":["00000000-0000-4000-8000-000000000001"],"limit":100,"offset":0
 production deployment: версии закрепляются отдельным PR в
 [moysklad-cloud](https://github.com/sellest/moysklad-cloud), затем явно запускается
 **Deploy approved release**. См. [порядок выпуска](https://github.com/sellest/moysklad-cloud/blob/main/delivery/README.md).
+
+### Прибыльность → По покупателям
+
+`get_customer_profit_report` читает все страницы штатного `/report/profit/bycounterparty`
+и возвращает общий топ-20 по `sellSum - returnSum`, по убыванию. `top_n` — 1..100,
+при равенстве используется UUID контрагента. Название и UUID берутся непосредственно
+из отчёта. Продажи/возвраты/нетто/валовая прибыль представлены в рублях; прибыль —
+поле `profit` штатного API, без оценки себестоимости по заказам.
+
+```json
+{"moment_from":"2026-08-01","moment_to":"2026-11-01","top_n":20}
+```
+
+Обе даты обязательны. Дата конца включает 23:59:59.999; учёт — Europe/Moscow.
+Поддержаны `organization_href` и `store_href`; без них — все доступные организации
+и склады. `totals.all` — все покупатели за период, `totals.customers` — без общих
+контрагентов маркетплейсов, `totals.marketplaces` — только они, `totals.ranking` —
+только показанный топ. Не путать эти суммы. Возвраты могут дать отрицательное нетто.
+
+Оператор хранит подтверждённые UUID общих контрагентов в приватном
+`/run/mcp-reference/profit-marketplaces.json` или задаёт `MCP_PROFIT_MARKETPLACES_FILE`.
+Формат: объект с массивами `wildberries` и `ozon`; см.
+[синтетический пример](examples/customer-profit-marketplaces.example.json).
+В Cloud файл размещается в существующем приватном `runtime/reference/`, уже
+смонтированном в `/run/mcp-reference`. Не добавлять клиентские UUID в публичный Git.
+Можно передать явный `marketplace_counterparty_ids` того же формата. Один UUID не
+может относиться к двум площадкам. Переименование карточек не влияет на разделение;
+подстроки названий не используются. Если в аккаунте таких общих карточек нет,
+оператор явно сохраняет оба массива пустыми. Без справочника инструмент сообщает
+ошибку настройки; не выдаёт заведомо непроверенный «рейтинг без маркетплейсов».
+`separate_marketplaces:false` явно возвращает общий рейтинг вместе с площадками.
+
+В analytics профиль инструмент включён; в gateway требуется allowlist entry
+`get_customer_profit_report` (публичное имя `moysklad_get_customer_profit_report`).
+Долгий вызов обслуживается обычными report jobs; опрашивать `get_report_job`, не
+запускать параллельную пагинацию документов. Завершённый результат повторно
+используется до 5 минут; `refresh_source:true` обновляет его. Справочник фиксируется
+в параметрах задания, а его изменение создаёт новое задание. Число/смещение
+страниц и уникальность UUID проверяются; при неполной выборке топ не возвращается.
+Для больших справочников предел — 50000 контрагентов; API не предоставляет
+транзакционный снимок всех страниц. JSON числа обрабатываются decimal-арифметикой,
+денежные значения округляются до копеек только при выдаче. Сумма округлённых
+строк может отличаться от отдельно округлённого общего итога на копейки.
+
+Сверка с интерфейсом МойСклад требует одинакового периода и фильтров. Проверка
+прямого API и расчёта MCP не означает независимую сверку с цифрами экрана клиента.

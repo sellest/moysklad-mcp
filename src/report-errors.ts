@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { reportContext } from "./report-context.js";
 const messages: Record<string, string> = {
+  CUSTOMER_PROFIT_POLICY_UNAVAILABLE:
+    "Marketplace counterparty UUID reference is missing or invalid. Ask the operator to configure MCP_PROFIT_MARKETPLACES_FILE or provide confirmed marketplace_counterparty_ids. Never infer IDs or exclude customers by a name substring.",
   EXPIRED_RESPONSE:
     "Inline response snapshot expired or is unavailable. Repeat the original request without response_cursor.",
   INLINE_RESPONSE_TOO_LARGE:
